@@ -331,7 +331,7 @@ void Desktop::beginBoot() {
                          "[ VFS ] mounting persistent virtual disk ...",
                          "[ MOD ] scheduler, permissions, clock, speaker",
                          "[ NET ] protected network bridge / available on demand",
-                         "[ SYS ] AURORA 1.4 / kernel ready",
+                         "[ SYS ] AURORA 1.5 / kernel ready",
                          "[ USR ] guest session / /home/guest",
                          "[ GUI ] starting desktop environment ..."};
     bootTimer_ = new QTimer(this);
@@ -708,7 +708,8 @@ void Desktop::showKeyboardReference()
         "<code>/proc/uptime</code><br><br>"
         "<b>HELLGATE</b><br>"
         "<code>W A S D</code> move, <code>Shift</code> run, arrows turn, <code>Space</code> fires, "
-        "<code>E</code> opens a gate, <code>P</code> pauses, <code>R</code> restarts.<br><br>"
+        "<code>E</code> opens a gate, <code>P</code> pauses, <code>R</code> restarts, "
+        "<code>T</code> is practice mode.<br><br>"
         "<b>A16 BASIC</b><br>"
         "Type <code>basic</code> in the terminal. Store lines with numbers, then <code>RUN</code>, "
         "<code>LIST</code>, <code>SAVE NAME.BAS</code> and <code>SYSTEM</code> to return.");

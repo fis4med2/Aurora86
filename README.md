@@ -1,10 +1,19 @@
-# AURORA/86 1.4.0
+# AURORA/86 1.5.0
 
 [Português](README.pt-BR.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Ideas roadmap (PT-BR)](ROADMAP.pt-BR.md)
 
 A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its own boot sequence, desktop, Unix-inspired shell, shared virtual disk, package manager, Lua runtime and native applications. The interface is in English.
 
 ![AURORA/86 desktop](AURORA86-desktop.png)
+
+## What's new in 1.5
+
+- **HELLGATE grows into a campaign:** after corridor 13 the station opens **THE CORE**, a ring corridor around the Warden's arena. Four gates lead in, the Warden shoots back, and the last portal only opens once it falls.
+- **Practice mode (`T`):** drones and the Warden hold their fire so you can learn the map, marked on the HUD.
+- **Projectiles and sector records:** energy bolts with their own sprite and collision, plus best times kept per sector and for the whole run.
+- **Eleven regression cases** now drive both maps with real key events, including the boss fight and the sealed final gate.
+
+![HELLGATE, the core](AURORA86-hellgate-core.png)
 
 ## What's new in 1.4
 
@@ -162,7 +171,7 @@ Lua API: `aurora.read/write/list/mkdir` and `aurora.theme/setting`. Limits: **1 
 | Echo | Watch and listen, then repeat the pad sequence using mouse or keyboard. Persistent best score. |
 | Circuit | Route a growing signal using arrows/WASD without crossing its trail. Space pauses; Enter restarts. |
 | Orbital Watch | Move with arrows/WASD and shoot with Space. P pauses; Enter restarts. Three shields and persistent best score. |
-| HELLGATE | First-person corridor 13: `WASD` move, `Shift` runs, arrows turn, `Space` fires, `E` opens gates, `P` pauses, `R` restarts. Reach the EXIT portal with the drones retired; best time persists. |
+| HELLGATE | First-person campaign: `WASD` move, `Shift` runs, arrows turn, `Space` fires, `E` opens gates, `P` pauses, `T` practice, `R` restarts. Clear corridor 13, then break into the core and retire the Warden; best times persist per sector. |
 
 ## Persistence and boundaries
 

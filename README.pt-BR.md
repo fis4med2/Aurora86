@@ -1,10 +1,24 @@
-# AURORA/86 1.4.0
+# AURORA/86 1.5.0
 
 [English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Roadmap de ideias](ROADMAP.pt-BR.md)
 
 Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem boot próprio, desktop, terminal inspirado no Unix, disco virtual compartilhado, gerenciador de pacotes, runtime Lua e aplicativos nativos. A interface está em inglês.
 
 ![Desktop AURORA/86](AURORA86-desktop.png)
+
+## Novidades da versão 1.5
+
+- **O HELLGATE virou campanha:** depois do corredor 13 a estação abre **THE CORE**,
+  um anel de corredores em volta da arena do Warden. Quatro portões dão entrada, o
+  chefe atira de volta e o portal final só abre depois que ele cai.
+- **Modo prática (`T`):** drones e Warden seguram o fogo para você aprender o mapa,
+  com aviso no HUD.
+- **Projéteis e recordes por setor:** bolas de energia com sprite e colisão
+  próprios, e melhores tempos guardados por setor e para a campanha inteira.
+- **Onze casos de regressão** agora percorrem os dois mapas com eventos de tecla
+  reais, incluindo a luta com o chefe e o portão final selado.
+
+![HELLGATE, the core](AURORA86-hellgate-core.png)
 
 ## Novidades da versão 1.4
 

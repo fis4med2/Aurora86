@@ -4,6 +4,38 @@ Todas as mudanças relevantes do AURORA/86. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa
 versionamento semântico no formato `MAJOR.MINOR.PATCH`.
 
+## [1.5.0] — 2026-10-24
+
+Versão "Two corridors": o HELLGATE deixa de ser um corredor só e vira uma
+campanha curta, com chefe, prática e tempos salvos por setor.
+
+### Adicionado
+
+- **Segundo setor, THE CORE** (`src/hellgate.cpp`): anel de corredores em volta da
+  arena do Warden. Quatro portões dão acesso à arena; o chefe tem 26 de vida, não
+  persegue (guarda posição), atira projéteis e causa dano corpo a corpo maior.
+- **Projéteis**: bolas de energia com sprite billboard, colisão com parede e com o
+  jogador, dano de 9 e tempo de vida limitado.
+- **Transição entre corredores**: pisar no portal EXIT do corredor 13 carrega o
+  setor seguinte mantendo vida, munição e abates, com aviso na tela.
+- **Portão final selado**: no último setor o EXIT só abre depois que o Warden cai;
+  antes disso a estação avisa "THE GATE IS SEALED / RETIRE THE WARDEN".
+- **Modo prática** (`T`): os drones (e o chefe) seguram o fogo, para explorar o
+  mapa e aprender a rota. Indicado no HUD e no manual.
+- **Recordes por setor**: `game/hellgateBest1`, `game/hellgateBest2`,
+  `game/hellgateTotalBest` e `game/hellgateRuns` nas configurações da estação.
+- **Manual**: a aba HELLGATE descreve os dois setores, o chefe e a tecla `T`; a
+  referência **Shift+F1** também lista a prática.
+
+### Alterado
+
+- Versão 1.5.0 em `CMakeLists.txt`, no rodapé, em `/etc/release`,
+  em `/proc/version`, no metainfo e no instalador Windows.
+- HUD mostra o setor atual (`A16 / CORRIDOR 13` ou `A16 / THE CORE`).
+- `tests/hellgate_test.cpp` passou de 7 para 11 casos: integridade dos dois mapas,
+  transição de setor com estatísticas preservadas, ataque do Warden e portão final
+  bloqueado enquanto o chefe vive — tudo dirigido por eventos de tecla reais.
+
 ## [1.4.0] — 2026-10-24
 
 Versão "Arcade": o A16 ganha sua primeira visão em primeira pessoa, desenhada

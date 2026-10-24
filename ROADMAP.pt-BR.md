@@ -1,6 +1,6 @@
 # AURORA/86 — Ideias para as próximas versões
 
-> **Status (1.4.0):** este documento nasceu como cardápio de ideias. A versão 1.3
+> **Status (1.5.0):** este documento nasceu como cardápio de ideias. A versão 1.3
 > implementou os itens 2.2 (ASTER com pipes), 3.7 (`/proc`), 3.9 (A16ARC), 2.4
 > (barra de janelas), 2.5 (protetor de tela), 5.2/5.4 do bloco rápido (captura de
 > tela e referência de teclado) e, como base de tudo, o **item 2.1 (A16 BASIC)**.
@@ -10,6 +10,10 @@
 > um motor de 1993, a estação desenha o próprio 3D. Ler arquivos `.WAD` de verdade
 > continua fora de alcance (o disco virtual tem 2048 KiB e o shareware do Doom
 > ocupa 4 MiB).
+> A versão 1.5 ("Two corridors") transformou o HELLGATE numa campanha curta: o
+> segundo setor **THE CORE**, a arena do Warden com projéteis, transição entre
+> corredores preservando vida e munição, portão final que só abre com o chefe
+> derrotado, modo prática (`T`) e recordes por setor.
 > Os itens ainda abertos seguem abaixo, sem alterações, para a próxima versão.
 
 

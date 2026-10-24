@@ -93,7 +93,7 @@ class CoreTest : public QObject {
             return entry.path == "/proc" && entry.directory && entry.permissions == 0555;
         }));
         QVERIFY(system.read("/proc/cpuinfo").contains("A16"));
-        QVERIFY(system.read("/proc/version").contains("AURORA/86 1.4"));
+        QVERIFY(system.read("/proc/version").contains("AURORA/86 1.5"));
         QVERIFY(system.read("/proc/loadavg").contains("0.00"));
         QCOMPARE(system.read("/proc/meminfo"),
                  QByteArray("MemTotal: 4096 kB\nMemFree: 3584 kB\nMemUsed: 512 kB\n"));

@@ -562,7 +562,7 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     tabs->addTab(createWallpaperPanel(s), "Wallpaper");
     tabs->addTab(createIdentityPanel(s), "auroraSYNC");
     tabs->addTab(createDisplayPanel(s), "Display");
-    auto *title = new QLabel("CONTROL PANEL / AURORA 1.4");
+    auto *title = new QLabel("CONTROL PANEL / AURORA 1.5");
     l->addWidget(title);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -627,7 +627,7 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
     Q_UNUSED(s);
     auto *w = new QWidget(parent);
     auto *l = column(w);
-    auto *heading = new QLabel("GAMES ROOM / AURORA 1.4");
+    auto *heading = new QLabel("GAMES ROOM / AURORA 1.5");
     l->addWidget(heading);
     auto *intro = new QLabel("Six experiences. Pick one to begin.");
     intro->setWordWrap(true);
@@ -845,7 +845,7 @@ QWidget *createAbout(QWidget *parent) {
     auto *l = column(w);
     auto *text = new QLabel("A U R O R A  /  8 6\n\nPERSONAL RESEARCH WORKSTATION\n"
                             "A16 series • 8 MHz • 4096 KiB\n2048 KiB magnetic disk\n\n"
-                            "AURORA system 1.4 / October 1986\nA small station. An entire world.\n\n"
+                            "AURORA system 1.5 / October 1986\nA small station. An entire world.\n\n"
                             "Hardware and processes are simulated.\nApplications built with C++ / Qt.\n"
                             "Browsing uses Chromium and the real internet.\n\n"
                             "F11  fullscreen      Ctrl+S  save\nTab  complete        ↑ / ↓   history");
@@ -876,6 +876,7 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
                      "W A S D         Move in HELLGATE (A/D strafe, Shift runs)\n"
                      "Arrows, Space   Turn and fire in HELLGATE\n"
                      "E / P / R       Gate, pause and restart in HELLGATE\n"
+                     "T               HELLGATE practice mode (drones hold fire)\n"
                      "Tab             Complete a path in Terminal\n"
                      "Up / Down       Terminal command history\n\n"
                      "Move windows by their title bars. Resize at the lower-right corner.\n"
@@ -898,11 +899,16 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
                      "Shift           run\n"
                      "Space           fire (each shot spends one round)\n"
                      "E               open or close a gate you are facing\n"
-                     "P               pause        R restart after the end\n\n"
-                     "Find health packs and ammo crates, retire the five drones and\n"
-                     "reach the EXIT portal. Wall columns, drones and gates are drawn\n"
-                     "by the simulated A16: no GPU, no texture files on disk.\n"
-                     "Your best crossing time is kept in the station settings.");
+                     "P               pause        R restart after the end\n"
+                     "T               practice mode, the drones hold their fire\n\n"
+                     "CORRIDOR 13 is the way in: find health packs and ammo crates,\n"
+                     "retire the five drones and step on the EXIT portal.\n\n"
+                     "THE CORE is the second sector. Four gates lead into the Warden's\n"
+                     "arena and the Warden shoots back. The last portal only opens\n"
+                     "once it falls, so stock up before you go in.\n\n"
+                     "Wall columns, drones and gates are drawn by the simulated A16:\n"
+                     "no GPU, no texture files on disk. Best times for both sectors\n"
+                     "are kept in the station settings.");
     page("Lua", "No compiler needed. Open Lua Studio, then choose Open folder.\n"
                 "Put a UTF-8 file named my-app.lua in that mods/ folder.\n\n"
                 "Install and run it in Terminal:\n\naurora -i my-app\nmy-app\n\n"

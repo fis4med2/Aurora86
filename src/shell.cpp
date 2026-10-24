@@ -485,7 +485,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
     if (command != "echo" && (redirect >= 0 || append >= 0))
         return "error: redirection is available only with echo.";
     if (command == "help")
-        return "ASTER shell / AURORA 1.4\n"
+        return "ASTER shell / AURORA 1.5\n"
                "ls [-l] [directory]   cd [directory]   pwd\n"
                "cat file              echo text [> or >> file]\n"
                "mkdir directory       touch file        rm [-r] path\n"
@@ -498,7 +498,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
                "browser [URL]         games             packages\n"
                "prism                 garden            eco\n"
                "snake                 blocks            about\n"
-               "hellgate              corridor 13: 3D maze with drones\n"
+               "hellgate              corridor 13 + the core: 3D maze with drones\n"
                "aurora -i PACKAGE...   install optional packages\n"
                "aurora --list         browse repository\n"
                "lua FILE.lua          run a Lua program\n"
@@ -710,9 +710,9 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
     if (command == "env" || command == "export" || command == "unset") {
         const auto environment = [this] {
             QMap<QString, QString> values;
-            for (const QString &name :
+            for (const char *name :
                  {"HOME", "USER", "PWD", "SHELL", "PATH", "TERM", "HOSTNAME", "EDITOR"})
-                values.insert(name, envValue(name));
+                values.insert(QString::fromLatin1(name), envValue(QString::fromLatin1(name)));
             const auto stored = m_system->setting("shellEnv").toMap();
             for (auto it = stored.constBegin(); it != stored.constEnd(); ++it)
                 values.insert(it.key(), it.value().toString());
@@ -980,7 +980,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
         return "Session locked.";
     }
     if (command == "uname")
-        return "AURORA/86 1.4  A16  8MHz  4096KiB  October1986";
+        return "AURORA/86 1.5  A16  8MHz  4096KiB  October1986";
     if (command == "date") {
         const auto now = QDateTime::currentDateTime();
         auto vintage = now;

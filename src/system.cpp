@@ -39,7 +39,7 @@ void SimSystem::seed() {
         m_entries.insert(path, {path, false, data, permissions});
     };
     file("/home/guest/README.txt",
-         "WELCOME TO AURORA/86 1.4\n"
+         "WELCOME TO AURORA/86 1.5\n"
          "A fictional A16 workstation from Aurora Laboratories.\n\n"
          "Type help in Terminal. Your home directory is /home/guest.\n"
          "Try basic to write a program in A16 BASIC, or basic docs/welcome.bas.\n"
@@ -75,7 +75,7 @@ void SimSystem::seed() {
          "notes.txt\nmkdir projects\nmv notes.txt projects/\nchmod 444 "
          "projects/notes.txt\nfree\ndf\nps\naurora -i fastfetch htop tree grep "
          "coreutils\nfastfetch\nhtop\ntree\n");
-    file("/etc/release", "AURORA/86 1.4\nAurora Laboratories / October 1986\n", 0444);
+    file("/etc/release", "AURORA/86 1.5\nAurora Laboratories / October 1986\n", 0444);
     file("/sys/hardware",
          "CPU: A16 / 16-bit bus / 8 MHz\nRAM: 4096 KiB\nDISK: M2 magnetic drive / 2048 KiB\nVIDEO: LUME "
          "adapter / 960 x 640 / 4 tones\nSOUND: mono waveform generator\n",
@@ -126,7 +126,7 @@ std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
     if (path == "/proc/uptime")
         return VEntry{path, false, QByteArray::number(m_uptime.elapsed() / 1000.0, 'f', 2) + "\n", 0444};
     if (path == "/proc/version")
-        return VEntry{path, false, "AURORA/86 1.4 (aster@aurora) #1 A16\n", 0444};
+        return VEntry{path, false, "AURORA/86 1.5 (aster@aurora) #1 A16\n", 0444};
     if (path == "/proc/loadavg")
         return VEntry{path, false,
                       QString("%1 0.00 0.00 1/%2 %3\n")

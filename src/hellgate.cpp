@@ -122,6 +122,52 @@ QImage droneSprite() {
     return sprite;
 }
 
+QImage bossSprite() {
+    QImage sprite(64, 80, QImage::Format_ARGB32);
+    sprite.fill(Qt::transparent);
+    QPainter p(&sprite);
+    p.setRenderHint(QPainter::Antialiasing, false);
+    p.setPen(Qt::NoPen);
+    // Heavy shoulders, horned helm and a glowing core.
+    p.setBrush(QColor("#4a1f14"));
+    p.drawEllipse(QRectF(10, 0, 44, 32));
+    p.drawPolygon(QPolygonF({{10, 12}, {0, 0}, {6, 26}}));
+    p.drawPolygon(QPolygonF({{54, 12}, {64, 0}, {58, 26}}));
+    p.setBrush(QColor("#6d2c1c"));
+    p.drawRoundedRect(QRectF(6, 30, 52, 32), 6, 6);
+    p.setBrush(QColor("#8f3d24"));
+    p.drawRect(QRectF(0, 32, 8, 26));
+    p.drawRect(QRectF(56, 32, 8, 26));
+    p.setBrush(QColor("#3a1710"));
+    p.drawRect(QRectF(18, 62, 10, 18));
+    p.drawRect(QRectF(36, 62, 10, 18));
+    p.setBrush(QColor("#ffd27f"));
+    p.drawRect(QRectF(18, 10, 9, 6));
+    p.drawRect(QRectF(37, 10, 9, 6));
+    p.setBrush(QColor("#f2c14e"));
+    p.drawEllipse(QRectF(25, 36, 14, 14));
+    p.setBrush(QColor("#fff6d8"));
+    p.drawEllipse(QRectF(29, 40, 6, 6));
+    p.end();
+    return sprite;
+}
+
+QImage boltSprite() {
+    QImage sprite(16, 16, QImage::Format_ARGB32);
+    sprite.fill(Qt::transparent);
+    QPainter p(&sprite);
+    p.setRenderHint(QPainter::Antialiasing, false);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(217, 166, 92, 110));
+    p.drawEllipse(QRectF(0, 0, 16, 16));
+    p.setBrush(QColor("#ffd27f"));
+    p.drawEllipse(QRectF(3, 3, 10, 10));
+    p.setBrush(QColor("#fff6d8"));
+    p.drawEllipse(QRectF(6, 6, 4, 4));
+    p.end();
+    return sprite;
+}
+
 QImage healthSprite() {
     QImage sprite(32, 32, QImage::Format_ARGB32);
     sprite.fill(Qt::transparent);
@@ -204,13 +250,52 @@ const QStringList &hellgateMap() {
     return rows;
 }
 
+// Level two: the ring corridor around the Warden's arena. The four gates are the
+// only way in, so the boss fight is opt-in until the final level demands it.
+static const QStringList &hellgateCore() {
+    static const QStringList rows = {
+        "########################",
+        "#......................#",
+        "#.P....................#",
+        "#......................#",
+        "#...#######.########...#",
+        "#...#######.########...#",
+        "#...#######+########...#",
+        "#...###..........###...#",
+        "#...###.=......=.###...#",
+        "#...###.....a....###...#",
+        "#...###..........###...#",
+        "#.....+....B.....+.....#",
+        "#...###...a...h..###...#",
+        "#...###......a...###...#",
+        "#...###..........###...#",
+        "#...###.=...h..=.###...#",
+        "#...###..........###...#",
+        "#...#######+########...#",
+        "#...#######.########...#",
+        "#...#######.########...#",
+        "#......................#",
+        "#....................X.#",
+        "#......................#",
+        "########################"};
+
+    return rows;
+}
+
+int hellgateLevelCount() { return 2; }
+
+QStringList hellgateLevel(int index) {
+    return index <= 0 ? hellgateMap() : hellgateCore();
+}
+
 HellgateGame::HellgateGame(SimSystem *system, QWidget *parent) : QWidget(parent), system_(system) {
     setObjectName("hellgate");
     setMinimumSize(620, 460);
     resize(780, 560);
     setFocusPolicy(Qt::StrongFocus);
     setAutoFillBackground(false);
-    map_ = hellgateMap();
+    levels_ = {hellgateMap(), hellgateCore()};
+    map_ = levels_.first();
     buildArtwork();
     resetGame();
     timer_ = new QTimer(this);
@@ -228,25 +313,45 @@ void HellgateGame::buildArtwork() {
     walls_[2] = metalTexture();
     walls_[3] = gateTexture();
     droneSprite_ = droneSprite();
+    bossSprite_ = bossSprite();
+    boltSprite_ = boltSprite();
     healthSprite_ = healthSprite();
     ammoSprite_ = ammoSprite();
     gateSprite_ = portalSprite();
 }
 
 void HellgateGame::resetGame() {
-    drones_.clear();
-    pickups_.clear();
-    doorOpen_.clear();
-    doorHold_.clear();
     health_ = 100;
     ammo_ = 24;
     kills_ = 0;
     elapsed_ = 0;
+    totalElapsed_ = 0;
     muzzle_ = damageFlash_ = 0;
     dead_ = won_ = paused_ = false;
     keyForward_ = keyBack_ = keyLeft_ = keyRight_ = false;
     keyTurnLeft_ = keyTurnRight_ = keyRun_ = false;
-    best_ = system_ ? system_->setting("game/hellgateBest", 0.0).toDouble() : 0.0;
+    banner_.clear();
+    bannerTime_ = 0;
+    loadLevel(0, false);
+    update();
+}
+
+void HellgateGame::loadLevel(int index, bool keepStats) {
+    level_ = qBound(0, index, levels_.size() - 1);
+    map_ = levels_.at(level_);
+    drones_.clear();
+    pickups_.clear();
+    projectiles_.clear();
+    doorOpen_.clear();
+    doorHold_.clear();
+    if (!keepStats) {
+        health_ = 100;
+        ammo_ = 24;
+        kills_ = 0;
+        elapsed_ = 0;
+        totalElapsed_ = 0;
+    }
+    elapsed_ = 0;
     posX_ = posY_ = 1.5;
     dirX_ = 1;
     dirY_ = 0;
@@ -259,11 +364,12 @@ void HellgateGame::resetGame() {
             if (cell == 'P') {
                 posX_ = x + 0.5;
                 posY_ = y + 0.5;
-            } else if (cell == 'g') {
+            } else if (cell == 'g' || cell == 'B') {
                 Drone drone;
                 drone.x = x + 0.5;
                 drone.y = y + 0.5;
-                drone.hp = 3;
+                drone.boss = cell == 'B';
+                drone.hp = drone.boss ? 26 : 3;
                 drone.stray = 0.5 + 1.5 * QRandomGenerator::global()->generateDouble();
                 drones_.append(drone);
             } else if (cell == 'h' || cell == 'a') {
@@ -275,10 +381,26 @@ void HellgateGame::resetGame() {
             }
         }
     }
-    update();
+    best_ = system_ ? system_->setting(bestKey(level_), 0.0).toDouble() : 0.0;
 }
 
-double HellgateGame::playerAngle() const { return std::atan2(dirY_, dirX_); }
+QString HellgateGame::bestKey(int level) const {
+    // 1.4 stored a single key; it belongs to corridor 13.
+    return level == 0 ? QStringLiteral("game/hellgateBest1") : QStringLiteral("game/hellgateBest2");
+}
+
+void HellgateGame::setPeaceful(bool on) {
+    peaceful_ = on;
+    if (peaceful_)
+        projectiles_.clear();
+    say(peaceful_ ? "PRACTICE MODE / THE DRONES HOLD THEIR FIRE"
+                  : "PRACTICE MODE OFF / THEY ARE BACK");
+}
+
+void HellgateGame::say(const QString &banner, double seconds) {
+    banner_ = banner;
+    bannerTime_ = seconds;
+}
 
 int HellgateGame::dronesLeft() const {
     int left = 0;
@@ -287,6 +409,22 @@ int HellgateGame::dronesLeft() const {
             ++left;
     return left;
 }
+
+bool HellgateGame::bossAlive() const {
+    for (const auto &drone : drones_)
+        if (drone.boss && drone.alive)
+            return true;
+    return false;
+}
+
+int HellgateGame::bossHealth() const {
+    for (const auto &drone : drones_)
+        if (drone.boss && drone.alive)
+            return drone.hp;
+    return 0;
+}
+
+double HellgateGame::playerAngle() const { return std::atan2(dirY_, dirX_); }
 
 bool HellgateGame::solid(double x, double y) const {
     const int mx = int(std::floor(x));
@@ -372,20 +510,31 @@ bool HellgateGame::lineOfSight(double x, double y) const {
 
 void HellgateGame::updateDrones(double seconds) {
     for (auto &drone : drones_) {
-        if (!drone.alive)
+        if (!drone.alive || peaceful_)
             continue;
         drone.flash = qMax(0.0, drone.flash - seconds * 3.0);
         drone.cooldown = qMax(0.0, drone.cooldown - seconds);
         const double dx = posX_ - drone.x, dy = posY_ - drone.y;
         const double distance = std::hypot(dx, dy);
-        if (distance < 1.25) {
+        const double reach = drone.boss ? 1.6 : 1.25;
+        if (distance < reach) {
             if (drone.cooldown <= 0 && !dead_) {
-                const int damage = 4 + int(QRandomGenerator::global()->bounded(5));
+                const int damage = drone.boss ? 12 + int(QRandomGenerator::global()->bounded(5))
+                                              : 4 + int(QRandomGenerator::global()->bounded(5));
                 health_ = qMax(0, health_ - damage);
                 damageFlash_ = 1.0;
-                drone.cooldown = 1.15;
+                drone.cooldown = drone.boss ? 1.6 : 1.15;
                 if (health_ == 0)
                     dead_ = true;
+            }
+            continue;
+        }
+        if (drone.boss) {
+            // The Warden holds its ground and fires while it can see the player.
+            drone.aim -= seconds;
+            if (!dead_ && drone.aim <= 0 && distance < 14 && lineOfSight(drone.x, drone.y)) {
+                fireBolt(drone);
+                drone.aim = 1.9;
             }
             continue;
         }
@@ -407,6 +556,42 @@ void HellgateGame::updateDrones(double seconds) {
         if (!solid(drone.x + stepX, drone.y + stepY)) {
             drone.x += stepX;
             drone.y += stepY;
+        }
+    }
+}
+
+void HellgateGame::fireBolt(const Drone &boss) {
+    const double angle = std::atan2(posY_ - boss.y, posX_ - boss.x);
+    const double speed = 3.4;
+    Bolt bolt;
+    bolt.x = boss.x + std::cos(angle) * 0.4;
+    bolt.y = boss.y + std::sin(angle) * 0.4;
+    bolt.vx = std::cos(angle) * speed;
+    bolt.vy = std::sin(angle) * speed;
+    bolt.life = 5.0;
+    projectiles_.append(bolt);
+}
+
+void HellgateGame::updateProjectiles(double seconds) {
+    if (peaceful_) {
+        projectiles_.clear();
+        return;
+    }
+    for (int i = projectiles_.size() - 1; i >= 0; --i) {
+        Bolt &bolt = projectiles_[i];
+        bolt.life -= seconds;
+        bolt.x += bolt.vx * seconds;
+        bolt.y += bolt.vy * seconds;
+        const bool hitWall = solid(bolt.x, bolt.y);
+        const bool hitPlayer = std::hypot(bolt.x - posX_, bolt.y - posY_) < 0.34;
+        if (hitWall || hitPlayer || bolt.life <= 0) {
+            if (hitPlayer && !dead_) {
+                health_ = qMax(0, health_ - 9);
+                damageFlash_ = 1.0;
+                if (health_ == 0)
+                    dead_ = true;
+            }
+            projectiles_.removeAt(i);
         }
     }
 }
@@ -485,16 +670,49 @@ void HellgateGame::step(double seconds) {
                 ammo_ = qMin(99, ammo_ + 8);
         }
     }
+    updateProjectiles(seconds);
+    bannerTime_ = qMax(0.0, bannerTime_ - seconds);
+    if (bannerTime_ <= 0)
+        banner_.clear();
+
     const int cx = int(std::floor(posX_)), cy = int(std::floor(posY_));
     if (cy >= 0 && cy < map_.size() && cx >= 0 && cx < map_.at(cy).size() &&
-        map_.at(cy).at(cx) == 'X') {
-        won_ = true;
-        if (best_ <= 0 || elapsed_ < best_) {
-            best_ = elapsed_;
-            if (system_)
-                system_->setSetting("game/hellgateBest", best_);
+        map_.at(cy).at(cx) == 'X' && !finished()) {
+        const bool lastLevel = level_ + 1 >= levels_.size();
+        if (lastLevel && bossAlive()) {
+            if (banner_ != "THE GATE IS SEALED / RETIRE THE WARDEN")
+                say("THE GATE IS SEALED / RETIRE THE WARDEN");
+            return;
         }
+        finishLevel();
     }
+}
+
+void HellgateGame::finishLevel() {
+    if (best_ <= 0 || elapsed_ < best_) {
+        best_ = elapsed_;
+        if (system_)
+            system_->setSetting(bestKey(level_), best_);
+    }
+    totalElapsed_ += elapsed_;
+    if (level_ + 1 >= levels_.size()) {
+        won_ = true;
+        if (system_) {
+            const int runs = system_->setting("game/hellgateRuns", 0).toInt() + 1;
+            system_->setSetting("game/hellgateRuns", runs);
+            const double total = system_->setting("game/hellgateTotalBest", 0.0).toDouble();
+            if (total <= 0 || totalElapsed_ < total)
+                system_->setSetting("game/hellgateTotalBest", totalElapsed_);
+        }
+        return;
+    }
+    const int carriedHealth = health_, carriedAmmo = ammo_, carriedKills = kills_;
+    loadLevel(level_ + 1, true);
+    health_ = carriedHealth;
+    ammo_ = carriedAmmo;
+    kills_ = carriedKills;
+    say(level_ == 1 ? "CORRIDOR 13 CLEARED / ENTERING THE CORE"
+                    : "SECTOR CLEARED");
 }
 
 QImage HellgateGame::renderFrame() const {
@@ -598,8 +816,12 @@ QImage HellgateGame::renderFrame() const {
         if (!drone.alive)
             continue;
         billboards.push_back({drone.x, drone.y, std::hypot(drone.x - posX_, drone.y - posY_),
-                              &droneSprite_, 0.72, drone.flash});
+                              drone.boss ? &bossSprite_ : &droneSprite_,
+                              drone.boss ? 1.45 : 0.72, drone.flash});
     }
+    for (const auto &bolt : projectiles_)
+        billboards.push_back({bolt.x, bolt.y, std::hypot(bolt.x - posX_, bolt.y - posY_),
+                              &boltSprite_, 0.16, 0.0});
     for (const auto &pickup : pickups_) {
         if (pickup.taken)
             continue;
@@ -720,13 +942,28 @@ void HellgateGame::paintEvent(QPaintEvent *) {
                    .arg(clock));
     p.setPen(QColor("#8cae8b"));
     p.drawText(hud.adjusted(14, 25, -14, 0), Qt::AlignLeft | Qt::AlignTop,
-               "W/S MOVE   A/D STRAFE   \u2190/\u2192 TURN   SPACE FIRE   E DOOR   P PAUSE");
+               "W/S MOVE   A/D STRAFE   \u2190/\u2192 TURN   SPACE FIRE   E DOOR   P PAUSE   T PRACTICE");
     p.setPen(amber);
-    p.drawText(hud.adjusted(0, 6, -14, 0), Qt::AlignRight | Qt::AlignTop, "A16 / CORRIDOR 13");
+    const QString sector = level_ == 0 ? "A16 / CORRIDOR 13" : "A16 / THE CORE";
+    p.drawText(hud.adjusted(0, 6, -14, 0), Qt::AlignRight | Qt::AlignTop, sector);
     if (best_ > 0)
         p.drawText(hud.adjusted(0, 25, -14, 0), Qt::AlignRight | Qt::AlignTop,
                    QString("BEST %1:%2").arg(int(best_) / 60, 2, 10, QChar('0'))
                        .arg(int(best_) % 60, 2, 10, QChar('0')));
+
+    if (!banner_.isEmpty() && !dead_ && !won_) {
+        const QRect strip = target.adjusted(target.width() / 10, target.height() / 12,
+                                            -target.width() / 10, 0);
+        const QRect box(strip.x(), strip.y(), strip.width(), 34);
+        p.fillRect(box, QColor(11, 21, 20, 220));
+        p.setPen(amber);
+        p.drawRect(box);
+        QFont note("DejaVu Sans Mono");
+        note.setPixelSize(13);
+        p.setFont(note);
+        p.setPen(cream);
+        p.drawText(box, Qt::AlignCenter, banner_);
+    }
 
     if (paused_ || dead_ || won_) {
         const QRect box = target.adjusted(target.width() / 8, target.height() / 4,
@@ -746,7 +983,7 @@ void HellgateGame::paintEvent(QPaintEvent *) {
         p.setFont(body);
         p.setPen(cream);
         const QString detail =
-            won_ ? QString("You crossed corridor 13 in %1:%2.\n%3 drones retired.   R to run it again")
+            won_ ? QString("Corridor 13 and the core cleared in %1:%2.\n%3 drones retired.   R to run it again")
                        .arg(int(elapsed_) / 60, 2, 10, QChar('0'))
                        .arg(int(elapsed_) % 60, 2, 10, QChar('0'))
                        .arg(kills_)
@@ -793,6 +1030,10 @@ void HellgateGame::keyPressEvent(QKeyEvent *event) {
     case Qt::Key_P:
         if (!dead_ && !won_)
             paused_ = !paused_;
+        break;
+    case Qt::Key_T:
+        if (!dead_ && !won_)
+            setPeaceful(!peaceful_);
         break;
     case Qt::Key_R:
         if (dead_ || won_)
