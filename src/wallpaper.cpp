@@ -16,12 +16,12 @@ QImage decode(QIODevice *device, QString *error = nullptr) {
     const QSize size = reader.size();
     if (!allowed.contains(format) || !size.isValid()) {
         if (error)
-            *error = "Formato inválido. Escolha uma imagem PNG, JPEG, BMP, PPM ou WebP.";
+            *error = "Invalid format. Choose a PNG, JPEG, BMP, PPM or WebP image.";
         return {};
     }
     if (size.width() > 32768 || size.height() > 32768 || qint64(size.width()) * size.height() > 64000000) {
         if (error)
-            *error = "Imagem grande demais. Reduza a resolução antes de importar.";
+            *error = "Image too large. Reduce its resolution before importing.";
         return {};
     }
     if (size.width() > 960 || size.height() > 640)
@@ -29,8 +29,8 @@ QImage decode(QIODevice *device, QString *error = nullptr) {
     QImage image = reader.read();
     if (image.isNull()) {
         if (error)
-            *error = "Não foi possível ler a imagem. Ela pode estar danificada ou ultrapassar o limite de "
-                     "memória.";
+            *error = "Could not read the image. It may be damaged or exceed the memory "
+                     "limit.";
         return {};
     }
     if (image.width() > 960 || image.height() > 640)
@@ -90,12 +90,12 @@ bool importWallpaper(SimSystem *system, const QString &localPath, QString *error
         return false;
     };
     if (!QFileInfo(localPath).isFile())
-        return fail("Escolha um arquivo de imagem comum.");
+        return fail("Choose a regular image file.");
     QFile file(localPath);
     if (!file.open(QIODevice::ReadOnly))
-        return fail("Não foi possível abrir a imagem escolhida.");
+        return fail("Could not open the selected image.");
     if (file.size() > MaxFileBytes)
-        return fail("Arquivo grande demais. O limite de importação é 64 MiB.");
+        return fail("File too large. The import limit is 64 MiB.");
     QString decodeError;
     const QImage image = decode(&file, &decodeError);
     if (image.isNull())
@@ -106,7 +106,7 @@ bool importWallpaper(SimSystem *system, const QString &localPath, QString *error
     QImageWriter writer(&encoded, "png");
     writer.setCompression(9);
     if (!writer.write(image))
-        return fail("Não foi possível preparar a cópia da imagem.");
+        return fail("Could not prepare the image copy.");
 
     const QString previousPath = system->setting("wallpaperPath", "").toString();
     // Persist the new setting before touching an existing image. Failed writes
@@ -114,7 +114,7 @@ bool importWallpaper(SimSystem *system, const QString &localPath, QString *error
     if (previousPath != ImportedPath) {
         system->setSetting("wallpaperPath", ImportedPath);
         if (system->setting("wallpaperPath").toString() != ImportedPath)
-            return fail(system->lastError().isEmpty() ? "Não foi possível gravar a preferência."
+            return fail(system->lastError().isEmpty() ? "Could not save the preference."
                                                       : system->lastError());
     }
     if (!system->write(ImportedPath, png)) {
@@ -137,10 +137,10 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
     layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(8);
     auto *intro = new QLabel(
-        "Use sua própria imagem como fundo. A importação copia uma versão reduzida para o disco virtual.");
+        "Use your own image as the background. Importing stores a reduced copy on the virtual disk.");
     intro->setWordWrap(true);
     layout->addWidget(intro);
-    auto *importButton = new QPushButton("Importar imagem do Linux...");
+    auto *importButton = new QPushButton("Import image from Linux...");
     importButton->setObjectName("wallpaperImport");
     auto *importRow = new QHBoxLayout;
     importRow->addWidget(importButton, 1);
@@ -151,9 +151,9 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
     files->setEditable(true);
     files->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     files->setInsertPolicy(QComboBox::NoInsert);
-    files->lineEdit()->setPlaceholderText("/home/guest/images/minha-imagem.png");
+    files->lineEdit()->setPlaceholderText("/home/guest/images/my-image.png");
     selectRow->addWidget(files, 1);
-    auto *apply = new QPushButton("Aplicar imagem");
+    auto *apply = new QPushButton("Apply image");
     apply->setObjectName("wallpaperApply");
     selectRow->addWidget(apply);
     layout->addLayout(selectRow);
@@ -168,16 +168,16 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
     auto *form = new QFormLayout;
     auto *mode = new QComboBox;
     mode->setObjectName("wallpaperMode");
-    mode->addItem("Preencher a tela (recorta bordas)", "cover");
-    mode->addItem("Mostrar inteira (com bordas)", "fit");
-    mode->addItem("Esticar até as bordas", "stretch");
-    mode->addItem("Centralizar sem ampliar", "center");
-    form->addRow("Encaixe", mode);
-    auto *retro = new QCheckBox("Converter para quatro tons retrô");
+    mode->addItem("Fill the screen (crop edges)", "cover");
+    mode->addItem("Fit the whole image (add borders)", "fit");
+    mode->addItem("Stretch to the edges", "stretch");
+    mode->addItem("Center at original size", "center");
+    form->addRow("Fit", mode);
+    auto *retro = new QCheckBox("Convert to four retro tones");
     retro->setObjectName("wallpaperRetro");
-    form->addRow("Cores", retro);
+    form->addRow("Colors", retro);
     layout->addLayout(form);
-    auto *restore = new QPushButton("Restaurar fundo original");
+    auto *restore = new QPushButton("Restore original background");
     restore->setObjectName("wallpaperRestore");
     importRow->addWidget(restore);
     auto *status = new QLabel;
@@ -187,15 +187,15 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
         const QString path = files->currentText().trimmed();
         if (path.isEmpty()) {
             frame->setPixmap({});
-            frame->setText("AURORA / 86\nFundo original");
-            status->setText("Selecione uma imagem existente ou importe uma imagem do Linux.");
+            frame->setText("AURORA / 86\nOriginal background");
+            status->setText("Select an existing image or import one from Linux.");
             return;
         }
         QString error;
         const QImage image = virtualImage(system, path, &error);
         if (image.isNull()) {
             frame->setPixmap({});
-            frame->setText("Prévia indisponível");
+            frame->setText("Preview unavailable");
             status->setText(error);
             return;
         }
@@ -219,33 +219,33 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
     };
     QObject::connect(importButton, &QPushButton::clicked, widget, [widget, system, status, refresh] {
         const QString filename = QFileDialog::getOpenFileName(
-            widget, "Escolher papel de parede", {},
-            "Imagens (*.png *.jpg *.jpeg *.bmp *.ppm *.pbm *.pgm *.webp);;Todos os arquivos (*)");
+            widget, "Choose wallpaper", {},
+            "Images (*.png *.jpg *.jpeg *.bmp *.ppm *.pbm *.pgm *.webp);;All files (*)");
         if (filename.isEmpty())
             return;
         QString error;
         if (!importWallpaper(system, filename, &error)) {
-            QMessageBox::warning(widget, "Importar papel de parede", error);
+            QMessageBox::warning(widget, "Import wallpaper", error);
             return;
         }
         refresh();
-        status->setText("Imagem copiada e aplicada. O arquivo original no Linux foi preservado.");
+        status->setText("Image copied and applied. The original Linux file is unchanged.");
     });
     QObject::connect(apply, &QPushButton::clicked, widget, [widget, system, files] {
         const QString path = system->normalize(files->currentText().trimmed());
         QString error;
         if (virtualImage(system, path, &error).isNull()) {
-            QMessageBox::warning(widget, "Aplicar papel de parede", error);
+            QMessageBox::warning(widget, "Apply wallpaper", error);
             return;
         }
         system->setSetting("wallpaperPath", path);
         if (system->setting("wallpaperPath").toString() != path)
-            QMessageBox::warning(widget, "Aplicar papel de parede", system->lastError());
+            QMessageBox::warning(widget, "Apply wallpaper", system->lastError());
     });
     QObject::connect(restore, &QPushButton::clicked, widget, [widget, system] {
         system->setSetting("wallpaperPath", "");
         if (!system->setting("wallpaperPath").toString().isEmpty())
-            QMessageBox::warning(widget, "Restaurar fundo", system->lastError());
+            QMessageBox::warning(widget, "Restore background", system->lastError());
     });
     QObject::connect(mode, &QComboBox::currentIndexChanged, widget, [widget, system, mode, showPreview] {
         system->setSetting("wallpaperMode", mode->currentData());
@@ -253,7 +253,7 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
         const QString error = system->lastError();
         showPreview();
         if (!saved)
-            QMessageBox::warning(widget, "Encaixe", error);
+            QMessageBox::warning(widget, "Fit", error);
     });
     QObject::connect(retro, &QCheckBox::toggled, widget, [widget, system, showPreview](bool checked) {
         system->setSetting("wallpaperRetro", checked);
@@ -261,7 +261,7 @@ QWidget *createWallpaperPanel(SimSystem *system, QWidget *parent) {
         const QString error = system->lastError();
         showPreview();
         if (!saved)
-            QMessageBox::warning(widget, "Cores", error);
+            QMessageBox::warning(widget, "Colors", error);
     });
     QObject::connect(files, &QComboBox::editTextChanged, widget, showPreview);
     QObject::connect(system, &SimSystem::changed, widget, refresh);

@@ -1,7 +1,12 @@
 #include "desktop.h"
 #include "apps.h"
 #include "creative_games.h"
+#include "display.h"
 #include "games.h"
+#include "login.h"
+#include "lua_apps.h"
+#include "package_apps.h"
+#include "packages.h"
 #include "wallpaper.h"
 #include <QtWidgets>
 #include <functional>
@@ -31,10 +36,10 @@ class WindowBar final : public QWidget {
             b->setFixedSize(28, 28);
             row->addWidget(b);
             if (name == "_") {
-                b->setToolTip("Minimizar");
+                b->setToolTip("Minimize");
                 connect(b, &QPushButton::clicked, window, &QWidget::showMinimized);
             } else if (name == "[]") {
-                b->setToolTip("Ampliar / restaurar");
+                b->setToolTip("Maximize / restore");
                 connect(b, &QPushButton::clicked, window, [window] {
                     if (window->isMaximized())
                         window->showNormal();
@@ -42,7 +47,7 @@ class WindowBar final : public QWidget {
                         window->showMaximized();
                 });
             } else {
-                b->setToolTip("Fechar");
+                b->setToolTip("Close");
                 connect(b, &QPushButton::clicked, window, &QWidget::close);
             }
         }
@@ -113,20 +118,25 @@ struct Application {
     QSize size;
 };
 const Application applications[] = {{"terminal", "Terminal / tty", 192, {760, 460}},
-                                    {"files", "Disco 0 / arquivos", 128, {800, 470}},
-                                    {"editor", "Escritor / documento", 128, {740, 470}},
-                                    {"calc", "Calculadora", 64, {370, 420}},
-                                    {"image", "Ateliê / imagens", 160, {650, 490}},
-                                    {"settings", "Painel de controle", 96, {790, 610}},
-                                    {"monitor", "Monitor do sistema", 64, {790, 450}},
-                                    {"browser", "Correio de Rede", 768, {960, 600}},
-                                    {"snake", "Circuito / laboratório de sinais", 128, {660, 500}},
-                                    {"blocks", "Vigília Orbital", 192, {660, 500}},
-                                    {"prism", "Prisma / laboratório óptico", 128, {720, 560}},
-                                    {"garden", "Jardim Orbital", 128, {720, 570}},
-                                    {"echo", "Eco / memória de sinais", 96, {720, 560}},
-                                    {"games", "Sala de jogos", 64, {760, 580}},
-                                    {"about", "Sobre esta estação", 32, {660, 470}}};
+                                    {"files", "Disk 0 / File Manager", 128, {800, 470}},
+                                    {"editor", "Writer / document", 128, {740, 470}},
+                                    {"calc", "Calculator", 64, {370, 420}},
+                                    {"image", "Atelier / images", 160, {650, 490}},
+                                    {"settings", "Control Panel", 96, {790, 610}},
+                                    {"monitor", "System Monitor", 64, {790, 450}},
+                                    {"browser", "Network Mail", 768, {960, 600}},
+                                    {"snake", "Circuit / signal lab", 128, {660, 500}},
+                                    {"blocks", "Orbital Watch", 192, {660, 500}},
+                                    {"prism", "Prism / optics lab", 128, {720, 560}},
+                                    {"garden", "Orbital Garden", 128, {720, 570}},
+                                    {"echo", "Echo / signal memory", 96, {720, 560}},
+                                    {"games", "Games Room", 64, {760, 580}},
+                                    {"packages", "Package Center", 128, {840, 580}},
+                                    {"htop", "htop / A16 process viewer", 96, {840, 540}},
+                                    {"lua", "Lua program", 192, {790, 580}},
+                                    {"lua-studio", "Lua Studio / mods", 128, {900, 620}},
+                                    {"pager", "less / document reader", 96, {740, 490}},
+                                    {"about", "About this station", 32, {660, 470}}};
 QDateTime simulatedTime(SimSystem *s) {
     QDateTime now = QDateTime::currentDateTime(), vintage = now;
     vintage.setDate(QDate(1986, now.date().month(),
@@ -134,24 +144,38 @@ QDateTime simulatedTime(SimSystem *s) {
     return now.addSecs(s->setting("clockOffsetSeconds", now.secsTo(vintage)).toLongLong());
 }
 } // namespace
-Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent) : QMainWindow(parent), system_(s) {
-    setWindowTitle("AURORA/86 — computador pessoal");
+Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
+    : QMainWindow(parent), system_(s), bypassLogin_(bypassLogin) {
+    setWindowTitle("AURORA/86 — personal computer");
     QSize initial(1180, 820);
     if (auto *screen = QGuiApplication::primaryScreen())
         initial = initial.boundedTo(screen->availableGeometry().size() - QSize(40, 60));
     resize(initial.expandedTo(QSize(960, 640)));
     setMinimumSize(960, 640);
+    screens_ = new QStackedWidget;
+    setCentralWidget(screens_);
+    menuBar()->hide();
+    statusBar()->hide();
+    resolutionTimer_ = new QTimer(this);
+    resolutionTimer_->setSingleShot(true);
+    resolutionTimer_->setInterval(200);
+    connect(resolutionTimer_, &QTimer::timeout, this, &Desktop::recordResolution);
     speaker_ = new Speaker(s, this);
     applyTheme();
     qApp->installEventFilter(this);
     auto *full = new QShortcut(QKeySequence(Qt::Key_F11), this);
     full->setContext(Qt::ApplicationShortcut);
     connect(full, &QShortcut::activated, this, &Desktop::toggleFullscreen);
+    auto *lock = new QShortcut(QKeySequence("Ctrl+Alt+L"), this);
+    lock->setContext(Qt::ApplicationShortcut);
+    connect(lock, &QShortcut::activated, this, &Desktop::lockSession);
     auto *terminal = new QShortcut(QKeySequence("Ctrl+Alt+T"), this);
     connect(terminal, &QShortcut::activated, this, [this] { launch("terminal"); });
     auto *close = new QShortcut(QKeySequence("Alt+F4"), this);
     connect(close, &QShortcut::activated, this, [this] {
-        if (area_ && area_->activeSubWindow())
+        if (locked_)
+            this->close();
+        else if (area_ && area_->activeSubWindow())
             area_->activeSubWindow()->close();
         else
             this->close();
@@ -170,6 +194,8 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent) : QMainWindow(par
             applyTheme();
         activeScanlines_ = lines;
         updateMeters();
+        if (system_->setting("displayPreset", "auto").toString() != activeDisplayPreset_)
+            applyDisplayMode();
         if (repaint)
             wallpaper();
     });
@@ -197,7 +223,7 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent) : QMainWindow(par
         }
     });
     if (skipBoot || !s->setting("boot", true).toBool())
-        startDesktop();
+        finishBoot();
     else
         beginBoot();
 }
@@ -263,8 +289,7 @@ void Desktop::beginBoot() {
     brand->setFont(large);
     brand->setStyleSheet("font-size:26px;color:#b6cc95;background:#101e1c");
     l->addWidget(brand);
-    l->addWidget(new QLabel(
-        "ESTAÇÃO A16     /     SISTEMA DE PARTIDA 1.04\nCOPYRIGHT (C) 1986  LABORATÓRIOS AURORA\n"));
+    l->addWidget(new QLabel("A16 WORKSTATION / BOOT SYSTEM 1.04\nCOPYRIGHT (C) 1986 AURORA LABORATORIES\n"));
     auto *log = new QPlainTextEdit;
     log->setReadOnly(true);
     log->setFrameStyle(QFrame::NoFrame);
@@ -274,26 +299,27 @@ void Desktop::beginBoot() {
     bar->setRange(0, 13);
     bar->setTextVisible(false);
     l->addWidget(bar);
-    l->addWidget(new QLabel("ENTER / ESPAÇO  continuar     |     F11  tela cheia"));
-    setCentralWidget(boot_);
-    QStringList steps = {"[ ROM ] A16 / barramento de 16 bits / oscilador 8 MHz",
+    l->addWidget(new QLabel("ENTER / SPACE  continue     |     F11  fullscreen"));
+    screens_->addWidget(boot_);
+    screens_->setCurrentWidget(boot_);
+    QStringList steps = {"[ ROM ] A16 / 16-bit bus / 8 MHz oscillator",
                          "[ RAM ] 0000 ... 1024 KiB : OK",
                          "[ RAM ] 1024 ... 2048 KiB : OK",
                          "[ RAM ] 2048 ... 4096 KiB : OK",
-                         "[ VID ] adaptador LUME / 960 x 640 / 4 tons",
-                         "[ I/O ] teclado serial e apontador : presentes",
-                         "[ DSK ] unidade magnética M2 / 2048 KiB : OK",
-                         "[ VFS ] montando disco virtual persistente ...",
-                         "[ MOD ] agendador, permissões, relógio, alto-falante",
-                         "[ NET ] ponte de rede protegida / disponível sob demanda",
-                         "[ SYS ] AURORA 1.0 / núcleo pronto",
-                         "[ USR ] sessão guest / /home/guest",
-                         "[ GUI ] iniciando ambiente de trabalho ..."};
+                         "[ VID ] LUME adapter / 960 x 640 / 4 tones",
+                         "[ I/O ] serial keyboard and pointer : present",
+                         "[ DSK ] M2 magnetic drive / 2048 KiB : OK",
+                         "[ VFS ] mounting persistent virtual disk ...",
+                         "[ MOD ] scheduler, permissions, clock, speaker",
+                         "[ NET ] protected network bridge / available on demand",
+                         "[ SYS ] AURORA 1.2 / kernel ready",
+                         "[ USR ] guest session / /home/guest",
+                         "[ GUI ] starting desktop environment ..."};
     bootTimer_ = new QTimer(this);
     connect(bootTimer_, &QTimer::timeout, this, [this, log, bar, steps] {
         if (bootStep_ >= steps.size()) {
             bootTimer_->stop();
-            startDesktop();
+            finishBoot();
             return;
         }
         log->appendPlainText(steps[bootStep_]);
@@ -307,12 +333,24 @@ void Desktop::startDesktop() {
     started_ = true;
     if (bootTimer_)
         bootTimer_->stop();
-    boot_ = nullptr;
+    locked_ = false;
+    menuBar()->show();
+    statusBar()->show();
     area_ = new QMdiArea;
     area_->setObjectName("desktopArea");
     area_->setOption(QMdiArea::DontMaximizeSubWindowOnActivation);
     area_->setViewMode(QMdiArea::SubWindowView);
-    setCentralWidget(area_);
+    area_->setFrameShape(QFrame::NoFrame);
+    area_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    display_ = new QScrollArea;
+    display_->setObjectName("displayFrame");
+    display_->setFrameShape(QFrame::NoFrame);
+    display_->setAlignment(Qt::AlignCenter);
+    display_->setWidget(area_);
+    screens_->addWidget(display_);
+    screens_->setCurrentWidget(display_);
+    applyDisplayMode();
     area_->viewport()->installEventFilter(this);
     auto action = [this](QMenu *menu, const QString &label, const QString &id) {
         auto *a = menu->addAction(appIcon(id, QColor("#35574b")), label);
@@ -321,35 +359,42 @@ void Desktop::startDesktop() {
     auto *bar = menuBar();
     bar->setNativeMenuBar(false);
     auto *systemMenu = bar->addMenu("AURORA / 86");
-    action(systemMenu, "Sobre esta estação", "about");
-    action(systemMenu, "Painel de controle", "settings");
-    auto *personalize = systemMenu->addAction("Papel de parede...");
+    action(systemMenu, "About this station", "about");
+    action(systemMenu, "Control Panel", "settings");
+    auto *personalize = systemMenu->addAction("Wallpaper...");
     connect(personalize, &QAction::triggered, this, [this] { launch("settings", "wallpaper"); });
-    action(systemMenu, "Monitor do sistema", "monitor");
+    action(systemMenu, "System Monitor", "monitor");
     systemMenu->addSeparator();
-    auto *full = systemMenu->addAction("Tela cheia    F11");
+    auto *lockAction = systemMenu->addAction("Lock session    Ctrl+Alt+L");
+    connect(lockAction, &QAction::triggered, this, &Desktop::lockSession);
+    auto *profile = systemMenu->addAction("auroraSYNC profile...");
+    connect(profile, &QAction::triggered, this, [this] { launch("settings", "identity"); });
+    auto *screenSettings = systemMenu->addAction("Display settings...");
+    connect(screenSettings, &QAction::triggered, this, [this] { launch("settings", "display"); });
+    auto *full = systemMenu->addAction("Fullscreen    F11");
     connect(full, &QAction::triggered, this, &Desktop::toggleFullscreen);
-    auto *quit = systemMenu->addAction("Desligar");
+    auto *quit = systemMenu->addAction("Shut down");
     connect(quit, &QAction::triggered, this, &Desktop::close);
-    auto *fileMenu = bar->addMenu("Arquivo");
-    action(fileMenu, "Novo documento", "editor");
-    action(fileMenu, "Explorar disco", "files");
-    auto *apps = bar->addMenu("Aplicativos");
+    auto *fileMenu = bar->addMenu("File");
+    action(fileMenu, "New document", "editor");
+    action(fileMenu, "Explore disk", "files");
+    auto *apps = bar->addMenu("Applications");
     for (const auto &a : applications)
-        if (QStringList{"terminal", "files", "editor", "calc", "image", "browser"}.contains(a.id))
+        if (QStringList{"terminal", "files", "editor", "calc", "image", "browser", "packages", "lua-studio"}
+                .contains(a.id))
             action(apps, QString::fromUtf8(a.title), a.id);
-    auto *games = bar->addMenu("Jogos");
-    action(games, "Sala de jogos", "games");
+    auto *games = bar->addMenu("Games");
+    action(games, "Games Room", "games");
     games->addSeparator();
-    action(games, "Prisma", "prism");
-    action(games, "Jardim Orbital", "garden");
-    action(games, "Eco", "echo");
-    action(games, "Circuito", "snake");
-    action(games, "Vigília Orbital", "blocks");
-    auto *windows = bar->addMenu("Janelas");
-    auto *cascade = windows->addAction("Sobrepor");
+    action(games, "Prism", "prism");
+    action(games, "Orbital Garden", "garden");
+    action(games, "Echo", "echo");
+    action(games, "Circuit", "snake");
+    action(games, "Orbital Watch", "blocks");
+    auto *windows = bar->addMenu("Windows");
+    auto *cascade = windows->addAction("Cascade");
     connect(cascade, &QAction::triggered, area_, &QMdiArea::cascadeSubWindows);
-    auto *tile = windows->addAction("Lado a lado");
+    auto *tile = windows->addAction("Tile");
     connect(tile, &QAction::triggered, area_, &QMdiArea::tileSubWindows);
     windows->addSeparator();
     connect(windows, &QMenu::aboutToShow, this, [this, windows] {
@@ -368,11 +413,11 @@ void Desktop::startDesktop() {
     clock_->setContentsMargins(12, 0, 12, 0);
     bar->setCornerWidget(clock_, Qt::TopRightCorner);
     meter_ = new QLabel;
-    statusBar()->addWidget(new QLabel("  A16  /  DISCO 0: ONLINE"));
+    statusBar()->addWidget(new QLabel("  A16  /  DISK 0: ONLINE"));
     statusBar()->addPermanentWidget(meter_);
     statusBar()->setSizeGripEnabled(false);
     const QStringList desktopIds = {"terminal", "files", "editor", "browser", "games", "settings"};
-    const QStringList names = {"Terminal", "Disco 0:", "Escritor", "Rede", "Jogos", "Controle"};
+    const QStringList names = {"Terminal", "Disk 0:", "Writer", "Network", "Games", "Control"};
     for (int i = 0; i < desktopIds.size(); ++i) {
         auto *b = new QToolButton(area_->viewport());
         b->setObjectName("desktopIcon");
@@ -391,7 +436,7 @@ void Desktop::startDesktop() {
     connect(area_->viewport(), &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         auto *menu = new QMenu(this);
         menu->setAttribute(Qt::WA_DeleteOnClose);
-        auto *item = menu->addAction("Personalizar papel de parede...");
+        auto *item = menu->addAction("Customize wallpaper...");
         connect(item, &QAction::triggered, this, [this] { launch("settings", "wallpaper"); });
         menu->popup(area_->viewport()->mapToGlobal(pos));
     });
@@ -404,10 +449,14 @@ void Desktop::startDesktop() {
     speaker_->play("boot");
     if (!system_->lastError().isEmpty())
         QTimer::singleShot(100, this,
-                           [this] { QMessageBox::warning(this, "Disco virtual", system_->lastError()); });
+                           [this] { QMessageBox::warning(this, "Virtual disk", system_->lastError()); });
 }
 void Desktop::launch(const QString &requested, const QString &path) {
-    if (!started_)
+    if (requested == "lock") {
+        lockSession();
+        return;
+    }
+    if (!started_ || locked_)
         return;
     QString id = requested;
     if (id == "circuit")
@@ -428,13 +477,21 @@ void Desktop::launch(const QString &requested, const QString &path) {
             break;
         }
     if (!spec) {
-        QMessageBox::warning(this, "Aplicativo", "Aplicativo desconhecido: " + id);
+        QMessageBox::warning(this, "Application", "Unknown application: " + id);
+        return;
+    }
+    if ((id == "htop" || id == "pager") &&
+        !PackageManager(system_).isInstalled(id == "htop" ? "htop" : "less")) {
+        speaker_->play("error");
+        QMessageBox::information(this, "Package not installed",
+                                 "Install this tool first:\naurora -i " +
+                                     QString(id == "htop" ? "htop" : "less"));
         return;
     }
     const int pid = system_->startProcess(id, spec->ram);
     if (pid < 0) {
         speaker_->play("error");
-        QMessageBox::warning(this, "Memória insuficiente", system_->lastError());
+        QMessageBox::warning(this, "Not enough memory", system_->lastError());
         return;
     }
     AppLauncher open = [this](const QString &a, const QString &p) { launch(a, p); };
@@ -451,12 +508,27 @@ void Desktop::launch(const QString &requested, const QString &path) {
         content = createImageViewer(system_, path);
     else if (id == "settings") {
         content = createSettings(system_);
+        auto *tabs = content->findChild<QTabWidget *>("controlTabs");
         if (path == "wallpaper")
-            content->findChild<QTabWidget *>("controlTabs")->setCurrentIndex(1);
+            tabs->setCurrentIndex(1);
+        else if (path == "identity")
+            tabs->setCurrentIndex(2);
+        else if (path == "display")
+            tabs->setCurrentIndex(3);
     } else if (id == "monitor")
         content = createMonitor(system_);
     else if (id == "browser")
         content = createBrowser(system_, speaker_, path);
+    else if (id == "packages")
+        content = createPackageManager(system_, open);
+    else if (id == "htop")
+        content = createHtop(system_);
+    else if (id == "pager")
+        content = createTextPager(system_, path);
+    else if (id == "lua")
+        content = createLuaProgram(system_, path);
+    else if (id == "lua-studio")
+        content = createLuaStudio(system_, open);
     else if (id == "snake")
         content = createCircuitGame(system_);
     else if (id == "blocks")
@@ -502,7 +574,7 @@ void Desktop::updateMeters() {
     if (!clock_)
         return;
     clock_->setText(simulatedTime(system_).toString("dd/MM/yyyy  HH:mm:ss"));
-    meter_->setText(QString("%1 KiB LIVRES   /   %2 PROCESSOS   ")
+    meter_->setText(QString("%1 KiB FREE   /   %2 PROCESSES   ")
                         .arg(SimSystem::MemoryKiB - system_->usedMemoryKiB())
                         .arg(system_->processes().size()));
 }
@@ -572,10 +644,10 @@ void Desktop::wallpaper() {
     int x = qMax(170, size.width() - 395);
     p.drawText(x, 54, "A U R O R A / 8 6");
     p.setFont(font());
-    p.drawText(x, 79, "ESTAÇÃO PESSOAL  /  SÉRIE A16");
+    p.drawText(x, 79, "PERSONAL STATION / A16 SERIES");
     p.drawLine(x, 91, size.width() - 40, 91);
-    p.drawText(x, 113, "UMA ESTAÇÃO PEQUENA.");
-    p.drawText(x, 132, "UM MUNDO INTEIRO.");
+    p.drawText(x, 113, "A SMALL STATION.");
+    p.drawText(x, 132, "AN ENTIRE WORLD.");
     int horizon = size.height() - 95;
     int center = size.width() - 200;
     p.setPen(ink);
@@ -590,7 +662,7 @@ void Desktop::wallpaper() {
                              {size.width() - 140, horizon - 128},
                              {size.width() - 30, horizon}}));
     p.drawEllipse(QRect(size.width() - 218, horizon - 165, 58, 58));
-    p.drawText(160, size.height() - 22, "AURORA SYSTEMS  /  OUT. 1986     •     16 BITS DE POSSIBILIDADES");
+    p.drawText(160, size.height() - 22, "AURORA SYSTEMS / OCT. 1986   •   16 BITS OF POSSIBILITY");
     p.end();
     area_->setBackground(QBrush(map));
 }
@@ -604,12 +676,14 @@ bool Desktop::eventFilter(QObject *object, QEvent *event) {
     if (boot_ && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Space || key->key() == Qt::Key_Escape) {
-            startDesktop();
+            finishBoot();
             return true;
         }
     }
-    if (area_ && object == area_->viewport() && event->type() == QEvent::Resize)
+    if (area_ && object == area_->viewport() && event->type() == QEvent::Resize) {
         QTimer::singleShot(0, this, &Desktop::wallpaper);
+        resolutionTimer_->start();
+    }
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (!key->isAutoRepeat() && !key->text().isEmpty())
@@ -626,7 +700,79 @@ void Desktop::closeEvent(QCloseEvent *event) {
             }
     }
     if (!system_->save() && !system_->lastError().isEmpty())
-        QMessageBox::warning(this, "Gravação do estado", system_->lastError());
+        QMessageBox::warning(this, "Saving system state", system_->lastError());
     event->accept();
 }
 void Desktop::screenshot(const QString &path) { grab().save(path); }
+
+void Desktop::finishBoot() {
+    if (bootTimer_)
+        bootTimer_->stop();
+    if (boot_) {
+        screens_->removeWidget(boot_);
+        boot_->deleteLater();
+        boot_ = nullptr;
+    }
+    if (bypassLogin_ || !system_->setting("loginEnabled", true).toBool())
+        startDesktop();
+    else
+        showLogin();
+}
+void Desktop::showLogin() {
+    locked_ = true;
+    menuBar()->hide();
+    statusBar()->hide();
+    if (login_) {
+        screens_->removeWidget(login_);
+        login_->deleteLater();
+    }
+    login_ = new LoginScreen(system_);
+    screens_->addWidget(login_);
+    screens_->setCurrentWidget(login_);
+    connect(login_, &LoginScreen::authenticated, this, [this] {
+        auto *finished = login_;
+        login_ = nullptr;
+        screens_->removeWidget(finished);
+        finished->setObjectName("retiredLogin");
+        finished->deleteLater();
+        locked_ = false;
+        if (!started_)
+            startDesktop();
+        else {
+            screens_->setCurrentWidget(display_);
+            menuBar()->show();
+            statusBar()->show();
+        }
+        speaker_->play("operation");
+    });
+    connect(login_, &LoginScreen::shutdownRequested, this, &Desktop::close);
+}
+void Desktop::lockSession() {
+    if (started_ && !locked_)
+        showLogin();
+}
+void Desktop::applyDisplayMode() {
+    activeDisplayPreset_ = system_->setting("displayPreset", "auto").toString();
+    if (!display_)
+        return;
+    const QSize size = displayPresetSize(activeDisplayPreset_);
+    if (size.isValid()) {
+        display_->setWidgetResizable(false);
+        area_->setFixedSize(size);
+    } else {
+        area_->setMinimumSize(0, 0);
+        area_->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        display_->setWidgetResizable(true);
+    }
+    resolutionTimer_->start();
+}
+void Desktop::recordResolution() {
+    if (!area_)
+        return;
+    const QSize size = area_->viewport()->size();
+    if (size.isEmpty())
+        return;
+    if (system_->setting("resolutionWidth", 0).toInt() != size.width() ||
+        system_->setting("resolutionHeight", 0).toInt() != size.height())
+        system_->setSettings({{"resolutionWidth", size.width()}, {"resolutionHeight", size.height()}});
+}

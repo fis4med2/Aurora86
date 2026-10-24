@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QList>
 #include <QMap>
 #include <QObject>
@@ -22,7 +23,7 @@ struct SimProcess {
 
 class SimSystem : public QObject {
     Q_OBJECT
-public:
+  public:
     explicit SimSystem(const QString &stateDirectory, QObject *parent = nullptr);
     bool load();
     bool save();
@@ -45,13 +46,17 @@ public:
     bool stopProcess(int pid);
     QList<SimProcess> processes() const;
     int usedMemoryKiB() const;
+    qint64 uptimeSeconds() const;
     QVariant setting(const QString &key, const QVariant &fallback = {}) const;
     void setSetting(const QString &key, const QVariant &value);
-signals:
+    bool setSettings(const QVariantMap &values);
+  signals:
     void changed();
     void processesChanged();
     void settingsChanged();
-private:
+
+  private:
+    QElapsedTimer m_uptime;
     QString m_directory;
     QMap<QString, VEntry> m_entries;
     QVariantMap m_settings;

@@ -10,7 +10,7 @@
 
 class CoreTest : public QObject {
     Q_OBJECT
-private slots:
+  private slots:
     void filesAndPersistence() {
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
@@ -66,7 +66,8 @@ private slots:
         const int before = system.usedBytes();
         QVERIFY(!system.write("gigante", QByteArray(SimSystem::DiskBytes, 'x')));
         QCOMPARE(system.usedBytes(), before);
-        const int available = SimSystem::DiskBytes - before - 64 - QString("/home/guest/cheio").toUtf8().size();
+        const int available =
+            SimSystem::DiskBytes - before - 64 - QString("/home/guest/cheio").toUtf8().size();
         QVERIFY(system.write("cheio", QByteArray(available, 'x')));
         QCOMPARE(system.usedBytes(), SimSystem::DiskBytes);
         QVERIFY(!system.mkdir("mais"));
@@ -85,7 +86,8 @@ private slots:
         QFile saved(dir.filePath("vfs.json"));
         QVERIFY(saved.open(QIODevice::WriteOnly));
         const QByteArray damaged("{broken state");
-        saved.write(damaged); saved.close();
+        saved.write(damaged);
+        saved.close();
         SimSystem system(dir.path());
         QVERIFY(!system.load());
         QVERIFY(!system.write("nao-salvar", "novo"));
@@ -104,11 +106,13 @@ private slots:
         auto root = QJsonDocument::fromJson(saved.readAll()).object();
         saved.close();
         auto entries = root.value("entries").toArray();
-        entries.append(QJsonObject{{"path", "/home/guest/missing/file"}, {"directory", false}, {"data", ""}, {"permissions", 0644}});
+        entries.append(QJsonObject{
+            {"path", "/home/guest/missing/file"}, {"directory", false}, {"data", ""}, {"permissions", 0644}});
         root["entries"] = entries;
         const auto damaged = QJsonDocument(root).toJson();
         QVERIFY(saved.open(QIODevice::WriteOnly | QIODevice::Truncate));
-        saved.write(damaged); saved.close();
+        saved.write(damaged);
+        saved.close();
         SimSystem restored(dir.path());
         QVERIFY(!restored.load());
         QVERIFY(!restored.save());
@@ -127,7 +131,8 @@ private slots:
         const auto defaultDate = QDateTime::fromString(shell.execute("date"), "dd/MM/yyyy HH:mm:ss");
         QCOMPARE(defaultDate.date().year(), 1986);
         QCOMPARE(defaultDate.date().month(), QDate::currentDate().month());
-        const auto offset = QDateTime::currentDateTime().secsTo(QDateTime(QDate(1987, 3, 5), QTime(12, 34, 56)));
+        const auto offset =
+            QDateTime::currentDateTime().secsTo(QDateTime(QDate(1987, 3, 5), QTime(12, 34, 56)));
         system.setSetting("clockOffsetSeconds", offset);
         const auto adjusted = QDateTime::fromString(shell.execute("date"), "dd/MM/yyyy HH:mm:ss");
         QCOMPARE(adjusted.date(), QDate(1987, 3, 5));
@@ -147,11 +152,11 @@ private slots:
         QCOMPARE(shell.execute("echo 'primeira linha' > 'arquivo novo.txt'"), QString());
         QCOMPARE(shell.execute("echo segunda >> 'arquivo novo.txt'"), QString());
         QCOMPARE(shell.execute("cat 'arquivo novo.txt'"), QString("primeira linha\nsegunda\n"));
-        QVERIFY(shell.execute("echo 'incompleto").startsWith("erro:"));
+        QVERIFY(shell.execute("echo 'incompleto").startsWith("error:"));
         QCOMPARE(shell.execute("echo '>'"), QString(">"));
         QCOMPARE(shell.execute("echo '>' > maior.txt"), QString());
         QCOMPARE(shell.execute("cat maior.txt"), QString(">\n"));
-        QVERIFY(shell.execute("rm /etc/release").startsWith("erro:"));
+        QVERIFY(shell.execute("rm /etc/release").startsWith("error:"));
         QCOMPARE(shell.execute("mkdir teste"), QString());
         QCOMPARE(shell.execute("mv 'arquivo novo.txt' teste"), QString());
         QCOMPARE(shell.execute("cd teste"), QString());
@@ -163,8 +168,24 @@ private slots:
         QCOMPARE(launch.size(), 1);
         QCOMPARE(launch.first().at(0).toString(), QString("edit"));
         QCOMPARE(launch.first().at(1).toString(), QString("/home/guest/teste/arquivo novo.txt"));
-        QVERIFY(shell.execute("$(touch /tmp/escape)").startsWith("erro:"));
+        QVERIFY(shell.execute("$(touch /tmp/escape)").startsWith("error:"));
         QVERIFY(shell.execute("free").contains("4096"));
+    }
+    void settingsBatchIsAtomic() {
+        QTemporaryDir folder;
+        SimSystem system(folder.path());
+        QVERIFY(system.load());
+        QVERIFY(system.setSettings({{"username", "before"}, {"displayName", "Before"}}));
+        QSignalSpy changed(&system, &SimSystem::settingsChanged);
+        QVERIFY(!system.setSettings({{"username", "after"}, {"oversize", QString(70000, 'x')}}));
+        QCOMPARE(system.setting("username").toString(), QString("before"));
+        QVERIFY(!system.setting("oversize").isValid());
+        QCOMPARE(changed.count(), 0);
+        QVERIFY(system.setSettings({{"username", "after"}, {"displayName", "After"}}));
+        QCOMPARE(changed.count(), 1);
+        SimSystem restored(folder.path());
+        QVERIFY(restored.load());
+        QCOMPARE(restored.setting("username").toString(), QString("after"));
     }
 };
 

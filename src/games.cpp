@@ -22,7 +22,7 @@ class Game : public QWidget {
         setMinimumSize(560, 420);
         resize(620, 465);
         setFocusPolicy(Qt::StrongFocus);
-        auto *restart = new QPushButton("REINICIAR", this);
+        auto *restart = new QPushButton("RESTART", this);
         restart->setGeometry(464, 10, 144, 36);
         restart->setFocusPolicy(Qt::NoFocus);
         restart->setStyleSheet("QPushButton {color:#172b2a;background:#efe5bd;border:2px solid "
@@ -77,9 +77,8 @@ class Game : public QWidget {
         p.setFont(font);
         p.setPen(dark);
         p.drawText(20, 25, title);
-        p.drawText(
-            20, 51,
-            QString("PONTOS %1   RECORDE %2").arg(score, 4, 10, QChar('0')).arg(best, 4, 10, QChar('0')));
+        p.drawText(20, 51,
+                   QString("SCORE %1   BEST %2").arg(score, 4, 10, QChar('0')).arg(best, 4, 10, QChar('0')));
         p.fillRect(18, 68, 524, 244, dark);
         p.setPen(green);
         p.drawRect(18, 68, 523, 243);
@@ -188,8 +187,9 @@ class Circuit final : public Game {
     }
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
-        prepare(p, "CIRCUITO / 01",
-                "SETAS/WASD: mover  ESPAÇO: pausa\nPegue contatos; evite bordas e o cabo.\nENTER: reiniciar");
+        prepare(
+            p, "CIRCUIT / 01",
+            "ARROWS/WASD: move  SPACE: pause\nCollect contacts; avoid walls and the cable.\nENTER: restart");
         p.setPen(QColor("#243a35"));
         for (int x = 20; x <= 540; x += 20)
             p.drawLine(x, 60, x, 300);
@@ -212,11 +212,11 @@ class Circuit final : public Game {
         p.drawRect(t);
         p.fillRect(t.adjusted(4, 4, -4, -4), amber);
         if (ended)
-            overlay(p, won ? "REDE COMPLETA" : "SINAL INTERROMPIDO", "ENTER para uma nova conexao");
+            overlay(p, won ? "NETWORK COMPLETE" : "SIGNAL LOST", "ENTER for a new connection");
         else if (paused)
-            overlay(p, "CIRCUITO EM ESPERA", "ESPACO para continuar");
+            overlay(p, "CIRCUIT PAUSED", "SPACE to continue");
         else if (!started)
-            overlay(p, "ESTABELECA A CONEXAO", "Pressione uma seta para iniciar");
+            overlay(p, "MAKE A CONNECTION", "Press an arrow key to begin");
     }
 };
 
@@ -362,8 +362,8 @@ class Meteor final : public Game {
     }
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
-        prepare(p, "VIGILIA ORBITAL / 02",
-                "SETAS/A/D: mover  ESPAÇO: atirar\nP: pausa  ENTER: reiniciar\nProteja a estação. Escudos: " +
+        prepare(p, "ORBITAL WATCH / 02",
+                "ARROWS/A/D: move  SPACE: fire\nP: pause  ENTER: restart\nProtect the station. Shields: " +
                     QString::number(lives));
         p.save();
         p.translate(20, 60);
@@ -373,7 +373,7 @@ class Meteor final : public Game {
         p.setPen(QPen(green, 1));
         p.drawLine(0, 237, 520, 237);
         p.setPen(amber);
-        p.drawText(10, 18, "ESCUDOS " + QString(lives, QChar('+')));
+        p.drawText(10, 18, "SHIELDS " + QString(lives, QChar('+')));
         for (const auto &rock : rocks) {
             const int x = int(rock.x), y = int(rock.y), s = rock.size;
             p.setPen(amber);
@@ -396,11 +396,11 @@ class Meteor final : public Game {
         p.fillRect(x + 2, 229, 3, 6, amber);
         p.restore();
         if (ended)
-            overlay(p, "ESTACAO FORA DE ALCANCE", "ENTER para uma nova patrulha");
+            overlay(p, "STATION OUT OF RANGE", "ENTER for a new patrol");
         else if (paused)
-            overlay(p, "PATRULHA EM ESPERA", "P para continuar");
+            overlay(p, "PATROL PAUSED", "P to continue");
         else if (!started)
-            overlay(p, "VIGILIA ORBITAL", "ESPACO inicia a patrulha");
+            overlay(p, "ORBITAL WATCH", "SPACE starts the patrol");
     }
 };
 } // namespace

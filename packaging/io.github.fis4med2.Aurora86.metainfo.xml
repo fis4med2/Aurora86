@@ -25,8 +25,8 @@
       <li>Switch between full screen and windowed mode while preserving virtual files and settings</li>
       <li xml:lang="pt_BR">Alterne entre tela cheia e janela, preservando arquivos virtuais e preferências</li>
     </ul>
-    <p>The application interface is in Brazilian Portuguese. The computer, memory, disk, and processes are simulated; this is not a CPU instruction emulator. The browser uses the real internet and consumes host memory.</p>
-    <p xml:lang="pt_BR">A interface do aplicativo está em português brasileiro. Computador, memória, disco e processos são simulados; não há emulação de instruções de CPU. O navegador usa a internet real e consome memória do computador hospedeiro.</p>
+    <p>The application interface is in English. The computer, memory, disk, and processes are simulated; this is not a CPU instruction emulator. The browser uses the real internet and consumes host memory.</p>
+    <p xml:lang="pt_BR">A interface do aplicativo está em inglês. Computador, memória, disco e processos são simulados; não há emulação de instruções de CPU. O navegador usa a internet real e consome memória do computador hospedeiro.</p>
   </description>
   <url type="homepage">https://github.com/fis4med2/Aurora86</url>
   <url type="vcs-browser">https://github.com/fis4med2/Aurora86</url>
@@ -50,7 +50,7 @@
   </branding>
   <content_rating type="oars-1.1"/>
   <languages>
-    <lang percentage="100">pt_BR</lang>
+    <lang percentage="100">en</lang>
   </languages>
   <requires>
     <display_length compare="ge" side="shortest">640</display_length>
@@ -77,6 +77,7 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.2.0" date="2026-10-24"><description><p>Add an English OS, auroraSYNC local login, customizable profiles and virtual resolutions, simulated packages, and embedded Lua programs and mods.</p><p xml:lang="pt_BR">Adiciona OS em inglês, login local auroraSYNC, perfis e resolução virtual personalizáveis, pacotes simulados e programas e mods Lua incorporados.</p></description></release>
     <release version="1.1.0" date="2026-10-23">
       <description>
         <p>Add custom wallpapers, larger readable fonts, and three new games: Prisma, Jardim Orbital, and Eco.</p>

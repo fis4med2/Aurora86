@@ -106,12 +106,12 @@ QPoint reflected(QPoint d, bool slash) { return slash ? QPoint(-d.y(), -d.x()) :
 class Prism final : public Puzzle {
   public:
     Prism(SimSystem *system, QWidget *parent)
-        : Puzzle(
-              system, "PRISMA / laboratório de luz",
-              "Clique num espelho para girar. Ou use 1–6. Leve o laser até o receptor à direita. R reinicia.",
-              parent) {
-        restart_ = control("Reiniciar nível", [this] { reset(false); });
-        next_ = control("Próximo nível", [this] {
+        : Puzzle(system, "PRISM / light laboratory",
+                 "Click a mirror to rotate, or use 1–6. Guide the laser to the receiver on the right. R "
+                 "restarts.",
+                 parent) {
+        restart_ = control("Restart level", [this] { reset(false); });
+        next_ = control("Next level", [this] {
             if (won_) {
                 level_ = (level_ + 1) % int(laserLevels.size());
                 reset(false);
@@ -199,16 +199,15 @@ class Prism final : public Puzzle {
         trace();
         if (won_)
             cleared_ = qMax(cleared_, level_ + 1);
-        status_->setText(
-            won_ ? QString("Receptor aceso! %1 giros. %2")
-                       .arg(moves_)
-                       .arg(level_ == 5 ? "Todos os níveis concluídos!" : "Pode seguir ao próximo nível.")
-                 : QString("Nível %1/6  |  giros %2  |  concluídos %3/6")
-                       .arg(level_ + 1)
-                       .arg(moves_)
-                       .arg(cleared_));
+        status_->setText(won_ ? QString("Receiver lit! %1 turns. %2")
+                                    .arg(moves_)
+                                    .arg(level_ == 5 ? "All levels complete!" : "The next level is ready.")
+                              : QString("Level %1/6  |  turns %2  |  cleared %3/6")
+                                    .arg(level_ + 1)
+                                    .arg(moves_)
+                                    .arg(cleared_));
         next_->setEnabled(won_);
-        next_->setText(level_ == 5 ? "Novo ciclo" : "Próximo nível");
+        next_->setText(level_ == 5 ? "New cycle" : "Next level");
         board_->update();
     }
     void save() {
@@ -275,12 +274,13 @@ class Prism final : public Puzzle {
 class Garden final : public Puzzle {
   public:
     Garden(SimSystem *system, QWidget *parent)
-        : Puzzle(system, "JARDIM ORBITAL / estufa de bordo",
-                 "Cada rega alterna a planta e suas vizinhas em cruz. Deixe todas verdes antes de acabar a "
-                 "água. Clique ou setas + Espaço.",
+        : Puzzle(system, "ORBITAL GARDEN / onboard greenhouse",
+                 "Each watering toggles a plant and its four neighbors. Turn them all green before you run "
+                 "out of "
+                 "water. Click, or use arrows + Space.",
                  parent) {
-        control("Replantar / R", [this] { reset(false); });
-        next_ = control("Próxima estufa", [this] {
+        control("Replant / R", [this] { reset(false); });
+        next_ = control("Next greenhouse", [this] {
             if (won_) {
                 level_ = (level_ + 1) % 8;
                 reset(false);
@@ -349,16 +349,16 @@ class Garden final : public Puzzle {
         won_ = count == 20;
         if (won_)
             cleared_ = qMax(cleared_, level_ + 1);
-        status_->setText(won_ ? QString("Estufa restaurada! Água restante: %1. %2")
+        status_->setText(won_ ? QString("Garden restored! Water left: %1. %2")
                                     .arg(water_)
-                                    .arg(level_ == 7 ? "Missão completa!" : "Próxima estufa liberada.")
-                         : water_ == 0 ? "Sem água. Replante para tentar outra estratégia."
-                                       : QString("Estufa %1/8  |  água %2  |  plantas verdes %3/20")
+                                    .arg(level_ == 7 ? "Mission complete!" : "The next greenhouse is ready.")
+                         : water_ == 0 ? "No water left. Replant to try another strategy."
+                                       : QString("Greenhouse %1/8  |  water %2  |  green plants %3/20")
                                              .arg(level_ + 1)
                                              .arg(water_)
                                              .arg(count));
         next_->setEnabled(won_);
-        next_->setText(level_ == 7 ? "Nova missão" : "Próxima estufa");
+        next_->setText(level_ == 7 ? "New mission" : "Next greenhouse");
         board_->update();
     }
     void save() {
@@ -422,14 +422,14 @@ class Garden final : public Puzzle {
 class Echo final : public Puzzle {
   public:
     Echo(SimSystem *system, QWidget *parent)
-        : Puzzle(system, "ECO / arquivo de sinais",
-                 "Observe e ouça a sequência. Depois repita com 1–4 ou clique nos sinais. R repete a "
-                 "sequência; Enter inicia outra partida.",
+        : Puzzle(system, "ECHO / signal archive",
+                 "Watch and listen to the sequence. Repeat it with 1–4 or click the pads. R replays the "
+                 "sequence; Enter starts a new game.",
                  parent) {
         speaker_ = new Speaker(system, this);
         best_ = qMax(0, system_->setting("game/echoBest", 0).toInt());
-        control("Nova partida", [this] { start(); });
-        replay_ = control("Repetir sinal / R", [this] {
+        control("New game", [this] { start(); });
+        replay_ = control("Replay signal / R", [this] {
             if (!sequence_.isEmpty())
                 demonstrate();
         });
@@ -561,21 +561,21 @@ class Echo final : public Puzzle {
     void refresh() {
         QString text;
         if (stage_ == Ready)
-            text = QString("Pronto para transmitir? Recorde: %1 sinais.").arg(best_);
+            text = QString("Ready to transmit? Best: %1 signals.").arg(best_);
         else if (stage_ == Failure)
-            text = QString("Sinal trocado! Completou %1. Recorde %2. R tenta a mesma sequência.")
+            text = QString("Wrong signal! Completed %1. Best %2. R retries the same sequence.")
                        .arg(completed_)
                        .arg(best_);
         else if (stage_ == Input || stage_ == Feedback)
-            text = QString("Sua vez: %1/%2  |  rodadas %3  |  recorde %4")
+            text = QString("Your turn: %1/%2  |  rounds %3  |  best %4")
                        .arg(qMin(index_ + 1, int(sequence_.size())))
                        .arg(sequence_.size())
                        .arg(completed_)
                        .arg(best_);
         else if (stage_ == RoundWon)
-            text = QString("Sequência correta! %1 sinais. Preparando o próximo...").arg(completed_);
+            text = QString("Correct sequence! %1 signals. Preparing the next round...").arg(completed_);
         else
-            text = QString("Observe os %1 sinais...  |  recorde %2").arg(sequence_.size()).arg(best_);
+            text = QString("Watch the %1 signals...  |  best %2").arg(sequence_.size()).arg(best_);
         status_->setText(text);
         replay_->setEnabled(stage_ == Input || stage_ == Failure);
         board_->update();
@@ -618,7 +618,7 @@ class Echo final : public Puzzle {
             p.setPen(paper);
             p.setFont(font());
             p.drawText(QRect(18, board_->height() / 2 - 20, board_->width() - 36, 40), Qt::AlignCenter,
-                       "ENTER / NOVA PARTIDA");
+                       "ENTER / NEW GAME");
         }
     }
 };

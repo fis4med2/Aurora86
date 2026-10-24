@@ -1,86 +1,103 @@
-# AURORA/86
+# AURORA/86 1.2.0
 
-[Português](README.pt-BR.md) · [Download v1.1.0](https://github.com/fis4med2/Aurora86/releases/tag/v1.1.0)
+[Português](README.pt-BR.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases)
 
-A fictional 1986 personal computer, built in **C++20 and Qt 6 for Linux**. AURORA has its own boot sequence, desktop, Unix-inspired shell, shared virtual disk and native applications. The interface and simulated documents are currently in Brazilian Portuguese.
+A fictional 1986 computer: **English OS**, Unix-style desktop, packages, five games and embedded **Lua 5.4.8**. C++20/Qt 6 core. **Users need no C++, Qt or Lua installation.**
 
-![AURORA/86 desktop](AURORA86-desktop.png)
+![Desktop](AURORA86-desktop.png)
 
-## What's new in 1.1
+## Download and open
 
-- **Your own wallpaper:** import an image from Linux, preview it, choose fill/fit/stretch/center, or apply a four-tone retro filter. The simulator stores its own reduced copy.
-- **Readable text:** embedded DejaVu Sans Mono, smooth text and persistent 14/16/18/20 px sizes. Default: 16 px. Larger controls and windows.
-- **Three new games:** Prisma, Jardim Orbital and Eco, alongside Circuito and Vigília Orbital. Five playable games in the new Games Room.
+**Windows validation is pending.** The [workflow](.github/workflows/windows.yml) produces these release assets when available:
 
-![Wallpaper controls](AURORA86-papel-de-parede.png)
-![Games Room](AURORA86-jogos.png)
-![Prisma laser puzzle](AURORA86-prisma.png)
+- `AURORA86-Setup-x64.exe`: open and follow setup. Designed for Windows 10/11 x64, installing in your account without administrator rights.
+- `AURORA86-Windows-x86_64.zip`: extract everything, then open `aurora86.exe`. Keep its DLLs, plugins and resources together.
 
-## Run
-
-Download the executable from [Releases](https://github.com/fis4med2/Aurora86/releases). This AppImage is **x86_64 and requires glibc 2.44 or newer**, an X11/Wayland session and host graphics drivers. Qt, WebEngine/Chromium, fonts and audio libraries are included. It is not compatible with older distributions without rebuilding against an older baseline.
+**Linux:** download `AURORA86-x86_64.AppImage`. Requires **x86_64, glibc ≥2.44**, X11/Wayland and host graphics drivers. Runtime dependencies are included; older distributions need a rebuild.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
 ./AURORA86-x86_64.AppImage
 ```
 
-Without FUSE:
+Without FUSE, add `--appimage-extract-and-run`.
 
-```sh
-./AURORA86-x86_64.AppImage --appimage-extract-and-run
+## auroraSYNC and customization
+
+First login: **Guest, no password → Sign in**. **Control → auroraSYNC** customizes name, login, note, message, avatar, background and optional password. **Ctrl+Alt+L** locks the session. Passwords use salted PBKDF2-SHA256 verifiers. Identity is local, not cloud/host authentication; the home stays **`/home/guest`** after renaming.
+
+**Control → Display:** Auto or fixed 960×640–1600×900, with scrollbars. **F11:** fullscreen. **System and text:** 14/16/18/20 px letters, themes, audio, clock. **Wallpaper:** image import, fit modes and retro filter. Host images/display stay unchanged.
+
+![Login](AURORA86-login.png)
+
+## Packages and apps
+
+Offline catalog: **16 packages / 23 utilities**, with dependencies and virtual disk use. These simulated tools use virtual files/processes, not host programs.
+
+```text
+aurora --list
+aurora -i fastfetch htop tree grep coreutils manuals
+fastfetch
+htop
+man grep
+aurora -l
 ```
 
-**F11** toggles fullscreen. Enter/Space skips boot. Drag window title bars; resize from the bottom-right corner. The Windows menu restores minimized applications.
+More tools include neofetch, cowsay, figlet, nano and less. `aurora -s TEXT` searches; `--info NAME` shows details; `-r NAME` removes. Package Center provides buttons. htop shows live processes with F2/F3/F9/F10 controls.
 
-Change wallpaper through **Controle → Papel de parede**, or right-click the desktop. Change font size through **Controle → Sistema e letras**. Imported images are copied into the virtual disk; the original Linux file is unchanged.
+Apps include Terminal, files, Writer, calculator, images and monitors. Chromium browses real HTTP/HTTPS and saves HTML virtually; host uploads/downloads/devices are disabled. Sandbox enabled; no DRM.
 
-## Applications
+![Packages](AURORA86-packages.png)
 
-- **ASTER terminal:** `help`, `ls -l`, `cd`, `pwd`, `cat`, `echo` with `>`/`>>`, `mkdir`, `touch`, `rm -r`, `mv`, `cp`, `chmod`, `stat`, `df`, `free`, `ps`, `kill`, `date`, `uname`, `whoami`, `clear`. Quoted paths, history and Tab completion. Launch games with `prisma`, `jardim`, `eco`, `snake`, `blocks`, or `games`. `exit` closes the terminal; `shutdown` closes the simulator.
-- **Disco 0:** create, open, delete and move/rename virtual files and directories.
-- **Escritor:** UTF-8 editor with Ctrl+S and unsaved-change/overwrite prompts.
-- **Calculator, image viewer, system monitor and settings.**
-- **Correio de Rede:** real HTTP/HTTPS browsing through Chromium, navigation controls and HTML saving to the virtual disk. Browser file access, uploads, host downloads and device permissions are disabled. Chromium sandboxing stays enabled.
+## Lua programs and mods
 
-## Games
+Open **Lua Studio** from Applications or enter `mods`. Its displayed `mods/` folder is created automatically when possible; **Choose folder** selects another host folder. Drop a UTF-8 `.lua` file there, then install/run:
 
-| Game | How to play |
-| --- | --- |
-| Prisma | Rotate mirrors to route a laser to its receiver. Six levels; puzzle state persists. |
-| Jardim Orbital | Plan cross-shaped watering moves to restore an orbital garden. Eight puzzles; progress persists. |
-| Eco | Watch and listen, then repeat the pad sequence using mouse or keyboard. Persistent best score. |
-| Circuito | Route a growing signal using arrows/WASD without crossing its trail. Space pauses; Enter restarts. |
-| Vigília Orbital | Move with arrows/WASD and shoot with Space. P pauses; Enter restarts. Three shields and persistent best score. |
+```text
+aurora -i hello
+hello
+```
 
-## Persistence and boundaries
+Examples in [`mods/`](mods/): `hello`, `notepad`, `theme-switcher`. Installation copies scripts into the virtual disk. Lua Studio can run/edit/remove them or create a new program. Run a virtual file with `lua /home/guest/docs/program.lua`.
 
-The A16 models 8 MHz, **4096 KiB simulated RAM** and a **2048 KiB virtual disk**. All virtual files, permissions, settings, imported wallpaper and game progress/records are stored atomically in `vfs.json` under `~/.local/share/Aurora/AURORA86/` or the corresponding XDG data directory. `--state-dir PATH` selects a separate computer. Existing 1.0 states remain usable.
+Save this as `my-app.lua`; install with `aurora -i my-app`, then run `my-app`:
 
-`/bin`, `/sys` and `/etc` are protected; `/home/guest` and `/tmp` are writable. Virtual paths never become Linux paths and the shell does not execute host commands. The wallpaper picker is an explicit, read-only import bridge. The clock is simulated. Invalid state is preserved rather than overwritten. A lock prevents two sessions from overwriting the same disk.
+```lua
+-- @name my-app
+local n = 0
+aurora.window {
+    title = "My program", text = "Click a button",
+    buttons = {
+        {label = "Count", action = function()
+            n = n + 1
+            aurora.text("Count: " .. n)
+        end},
+        {label = "Reset", action = function()
+            n = 0
+            aurora.text("Count: 0")
+        end}
+    }
+}
+```
 
-This is an interactive environment simulator, not CPU instruction emulation or a complete Unix. RAM quotas are simulated; actual Chromium memory use depends on websites. Browser sessions are in memory, DRM is not bundled, and some sites may require disabled capabilities. Active arcade rounds restart; puzzle progress and best scores persist.
+Lua API: `aurora.read/write/list/mkdir`, `aurora.theme/setting`. Limits: **1 MiB heap**, instruction budget and **64 KiB output**. No host io/os, native modules or code loader; some functions are restricted. Mods are portable without DLLs. **C++ core changes require an SDK/rebuild.**
 
-## Build and test
+![Lua Studio](AURORA86-lua.png)
 
-Requires CMake ≥3.21, a C++20 compiler and Qt ≥6.8 with Core, Widgets, Multimedia, WebEngineWidgets and Test.
+## Persistence, games and development
+
+A16: 8 MHz, **4096 KiB simulated RAM**, **2048 KiB disk**. State persists in `vfs.json` in your application-data folder; Linux usually uses `~/.local/share/Aurora/AURORA86/`. `--state-dir PATH` selects another station. Old documents survive. Images/mod folders are explicit imports; shell/Lua never execute host commands. CPU instructions are not emulated; Chromium uses real RAM.
+
+Games: Prism, Orbital Garden, Echo, Circuit and Orbital Watch. Puzzle progress and records persist.
+
+Developers need CMake ≥3.21, C99/C++20 and Qt ≥6.8: Core, Widgets, Network, Multimedia, WebEngineWidgets, Test. Lua source is included.
 
 ```sh
 cmake -S . -B work/build -DCMAKE_BUILD_TYPE=Release
 cmake --build work/build -j4
 QT_QPA_PLATFORM=offscreen ctest --test-dir work/build --output-on-failure
-./work/build/aurora86
-bash packaging/build-appimage.sh
 ```
 
-The AppImage script also uses Python 3, curl, ldd and readelf. Official AppImage tools are downloaded with pinned SHA-256 hashes. Host glibc and graphics drivers remain external; the script records compatibility in `COMPATIBILIDADE.txt`. Rebuild dependencies on an older distribution for a wider baseline.
+Packaging: `packaging/`. **GPL-3.0-or-later**; Lua MIT and third-party notices included. Most code/docs/packaging used AI assistance and were built/tested; Windows status is separate.
 
-`--self-test` checks applications without network access. `--browser-check https://example.com` checks real Chromium navigation. `AURORA_NO_AUDIO=1` disables audio; offscreen tests do so automatically. Wallpaper imports are reduced to at most 960×640 and respect virtual disk capacity.
-
-Core files live in `src/`, regression tests in `tests/`, and distribution metadata/scripts in `packaging/`. Main downloads and screenshots are also placed directly in the project folder. AppImages are release assets rather than Git objects because they exceed GitHub's normal file size limit.
-
-## Distribution status and license
-
-GitHub hosts source, screenshots and AppImage releases. **This project has not been submitted to Flathub.** Its [current policy](https://docs.flathub.org/docs/for-app-authors/requirements#generative-ai-policy) prohibits AI-generated/assisted submission manifests and AI-agent submission interactions. A human maintainer must independently handle any compliant submission and review the remaining requirements, including English UI localization and development history.
-
-Most original application code, documentation and packaging were generated or edited with AI assistance, then built and tested. Third-party libraries and fonts retain their own licenses. Project code: **GPL-3.0-or-later**. Font licenses are in `assets/`; bundled dependency notices are inside the extracted AppImage under `usr/share/licenses`.
+**Not on Flathub:** its [policy](https://docs.flathub.org/docs/for-app-authors/requirements#generative-ai-policy) prohibits AI-assisted manifests/agent submissions; a human must handle any compliant submission.

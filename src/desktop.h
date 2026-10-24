@@ -5,14 +5,19 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QMdiArea>
+#include <QStackedWidget>
 #include <QTimer>
+class LoginScreen;
+class QScrollArea;
 class Desktop : public QMainWindow {
     Q_OBJECT
   public:
-    Desktop(SimSystem *, bool skipBoot = false, QWidget *parent = nullptr);
+    Desktop(SimSystem *, bool skipBoot = false, QWidget *parent = nullptr, bool bypassLogin = false);
     void launch(const QString &app, const QString &path = {});
     void toggleFullscreen();
     void screenshot(const QString &path);
+    void lockSession();
+    bool isSessionLocked() const { return locked_; }
 
   protected:
     void closeEvent(QCloseEvent *) override;
@@ -22,6 +27,12 @@ class Desktop : public QMainWindow {
     SimSystem *system_;
     Speaker *speaker_;
     QMdiArea *area_ = nullptr;
+    QStackedWidget *screens_ = nullptr;
+    QScrollArea *display_ = nullptr;
+    LoginScreen *login_ = nullptr;
+    QTimer *resolutionTimer_ = nullptr;
+    QString activeDisplayPreset_;
+    bool bypassLogin_ = false, locked_ = true;
     QLabel *clock_ = nullptr, *meter_ = nullptr;
     QWidget *boot_ = nullptr;
     QTimer *bootTimer_ = nullptr;
@@ -35,6 +46,10 @@ class Desktop : public QMainWindow {
     int bootStep_ = 0;
     bool started_ = false;
     void startDesktop();
+    void finishBoot();
+    void showLogin();
+    void applyDisplayMode();
+    void recordResolution();
     void applyTheme();
     void beginBoot();
     void updateMeters();
