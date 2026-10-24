@@ -1,6 +1,6 @@
 # AURORA/86 1.2.0
 
-[English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases)
+[English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Roadmap de ideias](ROADMAP.pt-BR.md)
 
 Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem boot próprio, desktop, terminal inspirado no Unix, disco virtual compartilhado, gerenciador de pacotes, runtime Lua e aplicativos nativos. A interface está em inglês.
 
