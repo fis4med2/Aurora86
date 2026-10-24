@@ -16,6 +16,7 @@ class Desktop : public QMainWindow {
     void launch(const QString &app, const QString &path = {});
     void toggleFullscreen();
     void screenshot(const QString &path);
+    QString captureVirtualScreen();
     void lockSession();
     bool isSessionLocked() const { return locked_; }
 

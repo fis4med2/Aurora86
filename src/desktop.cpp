@@ -136,6 +136,7 @@ const Application applications[] = {{"terminal", "Terminal / tty", 192, {760, 46
                                     {"lua", "Lua program", 192, {790, 580}},
                                     {"lua-studio", "Lua Studio / mods", 128, {900, 620}},
                                     {"pager", "less / document reader", 96, {740, 490}},
+                                    {"handbook", "Station handbook", 96, {850, 650}},
                                     {"about", "About this station", 32, {660, 470}}};
 QDateTime simulatedTime(SimSystem *s) {
     QDateTime now = QDateTime::currentDateTime(), vintage = now;
@@ -171,6 +172,12 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     connect(lock, &QShortcut::activated, this, &Desktop::lockSession);
     auto *terminal = new QShortcut(QKeySequence("Ctrl+Alt+T"), this);
     connect(terminal, &QShortcut::activated, this, [this] { launch("terminal"); });
+    auto *help = new QShortcut(QKeySequence(Qt::Key_F1), this);
+    help->setObjectName("handbookShortcut");
+    connect(help, &QShortcut::activated, this, [this] { launch("handbook"); });
+    auto *capture = new QShortcut(QKeySequence(Qt::Key_Print), this);
+    capture->setObjectName("screenshotShortcut");
+    connect(capture, &QShortcut::activated, this, [this] { captureVirtualScreen(); });
     auto *close = new QShortcut(QKeySequence("Alt+F4"), this);
     connect(close, &QShortcut::activated, this, [this] {
         if (locked_)
@@ -378,6 +385,8 @@ void Desktop::startDesktop() {
     auto *fileMenu = bar->addMenu("File");
     action(fileMenu, "New document", "editor");
     action(fileMenu, "Explore disk", "files");
+    auto *capture = fileMenu->addAction("Capture screen    Print Screen");
+    connect(capture, &QAction::triggered, this, [this] { captureVirtualScreen(); });
     auto *apps = bar->addMenu("Applications");
     for (const auto &a : applications)
         if (QStringList{"terminal", "files", "editor", "calc", "image", "browser", "packages", "lua-studio"}
@@ -409,6 +418,9 @@ void Desktop::startDesktop() {
             });
         }
     });
+    auto *help = bar->addMenu("Help");
+    action(help, "Station handbook    F1", "handbook");
+    action(help, "About this station", "about");
     clock_ = new QLabel;
     clock_->setContentsMargins(12, 0, 12, 0);
     bar->setCornerWidget(clock_, Qt::TopRightCorner);
@@ -541,6 +553,8 @@ void Desktop::launch(const QString &requested, const QString &path) {
         content = createEchoGame(system_);
     else if (id == "games")
         content = createGameLibrary(system_, open);
+    else if (id == "handbook")
+        content = createHandbook(open);
     else
         content = createAbout();
     auto *window = new AppWindow;
@@ -704,6 +718,40 @@ void Desktop::closeEvent(QCloseEvent *event) {
     event->accept();
 }
 void Desktop::screenshot(const QString &path) { grab().save(path); }
+QString Desktop::captureVirtualScreen() {
+    if (locked_ || !area_)
+        return {};
+    QString path;
+    for (int i = 1; i <= 9999; ++i) {
+        const QString candidate = QString("/home/guest/images/snap-%1.png").arg(i, 4, 10, QChar('0'));
+        if (!system_->exists(candidate)) {
+            path = candidate;
+            break;
+        }
+    }
+    if (path.isEmpty()) {
+        statusBar()->showMessage("Screenshot failed: all 9999 capture names are in use.", 10000);
+        return {};
+    }
+    QImage image = grab().toImage();
+    if (image.width() > 1600 || image.height() > 1000)
+        image = image.scaled(1600, 1000, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    if (image.isNull() || !image.save(&buffer, "PNG")) {
+        statusBar()->showMessage("Screenshot failed: could not encode the picture.", 10000);
+        return {};
+    }
+    if (!system_->write(path, bytes)) {
+        speaker_->play("error");
+        statusBar()->showMessage("Screenshot failed: " + system_->lastError(), 10000);
+        return {};
+    }
+    statusBar()->showMessage("Saved screenshot: " + path, 10000);
+    launch("image", path);
+    return path;
+}
 
 void Desktop::finishBoot() {
     if (bootTimer_)

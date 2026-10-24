@@ -1,6 +1,7 @@
 #include "desktop.h"
 #include "display.h"
 #include "login.h"
+#include "lua_apps.h"
 #include "mods.h"
 #include "package_apps.h"
 #include "shell.h"
@@ -19,6 +20,8 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShortcut>
+#include <QTabWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -356,6 +359,73 @@ class UiTest final : public QObject {
         QVERIFY(!shell.execute("aurora -r counter").startsWith("error:"));
         QVERIFY(!isModInstalled(&system, "counter"));
         QVERIFY(shell.execute("counter").startsWith("error:"));
+    }
+    void luaNotebookSavesTypedTextAndRestoresIt() {
+        QTemporaryDir folder;
+        SimSystem system(folder.path());
+        QVERIFY(system.load());
+        QFile example(":/mods/notepad.lua");
+        QVERIFY(example.open(QIODevice::ReadOnly));
+        const QString source = "/home/guest/docs/notepad.lua";
+        QVERIFY(system.write(source, example.readAll()));
+        std::unique_ptr<QWidget> program(createLuaProgram(&system, source));
+        auto *note = program->findChild<QPlainTextEdit *>("luaInput_note");
+        QVERIFY(note);
+        const QString text = QString::fromUtf8("Workshop notes\nOlá, AURORA!\n");
+        note->setPlainText(text);
+        program->findChild<QPushButton *>("luaButton_0")->click();
+        QCOMPARE(system.read("/home/guest/docs/lua-notes.txt"), text.toUtf8());
+        program.reset();
+        SimSystem restored(folder.path());
+        QVERIFY(restored.load());
+        program.reset(createLuaProgram(&restored, source));
+        note = program->findChild<QPlainTextEdit *>("luaInput_note");
+        QVERIFY(note);
+        QCOMPARE(note->toPlainText(), text);
+        note->setPlainText(QString(4097, 'x'));
+        program->findChild<QPushButton *>("luaButton_0")->click();
+        QCOMPARE(restored.read("/home/guest/docs/lua-notes.txt"), text.toUtf8());
+        QVERIFY(program->findChild<QPlainTextEdit *>("luaOutput")->toPlainText().contains("4096"));
+        const QByteArray invalid("bad\0bytes", 9);
+        QVERIFY(restored.write("/home/guest/docs/lua-notes.txt", invalid));
+        note->setPlainText(text);
+        program->findChild<QPushButton *>("luaButton_1")->click();
+        program->findChild<QPushButton *>("luaButton_0")->click();
+        QCOMPARE(restored.read("/home/guest/docs/lua-notes.txt"), invalid);
+        QVERIFY(program->findChild<QPlainTextEdit *>("luaText")->toPlainText().contains("Reload"));
+    }
+    void handbookAndScreenCaptureUseTheVirtualDisk() {
+        QTemporaryDir folder;
+        SimSystem system(folder.path());
+        QVERIFY(system.load());
+        Desktop desktop(&system, true);
+        desktop.show();
+        QApplication::processEvents();
+        QVERIFY(desktop.isSessionLocked());
+        QVERIFY(desktop.captureVirtualScreen().isEmpty());
+        desktop.findChild<QPushButton *>("loginSubmit")->click();
+        QApplication::processEvents();
+        auto *help = desktop.findChild<QShortcut *>("handbookShortcut");
+        QVERIFY(help);
+        QVERIFY(QMetaObject::invokeMethod(help, "activated"));
+        auto *tabs = desktop.findChild<QTabWidget *>("handbookTabs");
+        QVERIFY(tabs);
+        QCOMPARE(tabs->count(), 3);
+        auto *capture = desktop.findChild<QShortcut *>("screenshotShortcut");
+        QVERIFY(capture);
+        QVERIFY(QMetaObject::invokeMethod(capture, "activated"));
+        const QString first = "/home/guest/images/snap-0001.png";
+        const QByteArray original = system.read(first);
+        QVERIFY(!QImage::fromData(original, "PNG").isNull());
+        QCOMPARE(desktop.findChild<QLineEdit *>("imagePath")->text(), first);
+        QCOMPARE(desktop.captureVirtualScreen(), QString("/home/guest/images/snap-0002.png"));
+        QCOMPARE(system.read(first), original);
+        QVERIFY(system.chmod("/home/guest/images", 0555));
+        QVERIFY(desktop.captureVirtualScreen().isEmpty());
+        QVERIFY(!system.exists("/home/guest/images/snap-0003.png"));
+        SimSystem restored(folder.path());
+        QVERIFY(restored.load());
+        QCOMPARE(restored.read(first), original);
     }
 };
 QTEST_MAIN(UiTest)

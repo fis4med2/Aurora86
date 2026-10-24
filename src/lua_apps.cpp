@@ -25,17 +25,72 @@ class Program final : public QWidget {
     LuaRuntime runtime_;
     QLabel *title_;
     QPlainTextEdit *body_, *console_;
+    QScrollArea *fields_;
+    QFormLayout *form_;
     QWidget *buttons_;
     QGridLayout *grid_;
+    bool collectInputs() {
+        for (auto *widget : fields_->findChildren<QWidget *>()) {
+            const QString id = widget->property("luaInputId").toString();
+            if (id.isEmpty())
+                continue;
+            const auto *line = qobject_cast<QLineEdit *>(widget);
+            const auto *text = qobject_cast<QPlainTextEdit *>(widget);
+            const QString value = line ? line->text() : text ? text->toPlainText() : QString();
+            if (value.toUtf8().size() > 4096 || value.contains(QChar::Null)) {
+                console_->show();
+                console_->setPlainText("Input '" + id + "' exceeds 4096 bytes or contains a null character.");
+                widget->setFocus();
+                return false;
+            }
+        }
+        for (auto *widget : fields_->findChildren<QWidget *>()) {
+            const QString id = widget->property("luaInputId").toString();
+            if (id.isEmpty())
+                continue;
+            const auto *line = qobject_cast<QLineEdit *>(widget);
+            const auto *text = qobject_cast<QPlainTextEdit *>(widget);
+            if (!runtime_.setInput(id, line ? line->text() : text->toPlainText()))
+                return false;
+        }
+        return true;
+    }
     void render(const LuaResult &result) {
         title_->setText(result.title.isEmpty() ? "Lua program" : result.title);
         body_->setPlainText(result.text);
         body_->setVisible(!result.text.isEmpty());
+        body_->setMinimumHeight(result.inputs.isEmpty() ? 90 : 40);
+        body_->setMaximumHeight(result.inputs.isEmpty() ? QWIDGETSIZE_MAX : 80);
         console_->setPlainText(result.output +
                                (result.error.isEmpty() ? QString() : "\nerror: " + result.error));
+        console_->setVisible(!result.output.isEmpty() || !result.error.isEmpty());
+        while (form_->rowCount())
+            form_->removeRow(0);
+        for (const auto &field : result.inputs) {
+            QWidget *input;
+            if (field.multiline) {
+                auto *text = new QPlainTextEdit(field.value);
+                text->setMinimumHeight(100);
+                input = text;
+            } else {
+                auto *line = new QLineEdit(field.value);
+                line->setMaxLength(4096);
+                input = line;
+            }
+            input->setObjectName("luaInput_" + field.id);
+            input->setProperty("luaInputId", field.id);
+            input->setEnabled(result.ok);
+            auto *label = new QLabel(field.label);
+            label->setTextFormat(Qt::PlainText);
+            label->setWordWrap(true);
+            label->setBuddy(input);
+            form_->addRow(label, input);
+        }
+        fields_->setVisible(!result.inputs.isEmpty());
         while (auto *item = grid_->takeAt(0)) {
             if (item->widget()) {
                 item->widget()->hide();
+                item->widget()->setObjectName("retiredLuaButton");
                 item->widget()->deleteLater();
             }
             delete item;
@@ -47,7 +102,10 @@ class Program final : public QWidget {
             b->setObjectName("luaButton_" + QString::number(i));
             b->setEnabled(result.ok);
             grid_->addWidget(b, i / 3, i % 3);
-            connect(b, &QPushButton::clicked, this, [this, i] { render(runtime_.click(i)); });
+            connect(b, &QPushButton::clicked, this, [this, i] {
+                if (collectInputs())
+                    render(runtime_.click(i));
+            });
         }
         buttons_->setVisible(!result.buttons.isEmpty());
     }
@@ -84,6 +142,16 @@ class Program final : public QWidget {
         body_->setReadOnly(true);
         body_->setMinimumHeight(90);
         l->addWidget(body_, 2);
+        fields_ = new QScrollArea;
+        fields_->setWidgetResizable(true);
+        fields_->setFrameShape(QFrame::NoFrame);
+        auto *formWidget = new QWidget;
+        form_ = new QFormLayout(formWidget);
+        form_->setContentsMargins(0, 0, 8, 0);
+        form_->setRowWrapPolicy(QFormLayout::WrapLongRows);
+        form_->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+        fields_->setWidget(formWidget);
+        l->addWidget(fields_, 3);
         buttons_ = new QWidget;
         grid_ = new QGridLayout(buttons_);
         grid_->setContentsMargins(0, 0, 0, 0);

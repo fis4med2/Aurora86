@@ -44,12 +44,17 @@ void SimSystem::seed() {
          "Type help in Terminal. Your home directory is /home/guest.\n"
          "Use edit notes.txt and Ctrl+S to write a document.\n"
          "F11 toggles fullscreen; windows can be moved and resized.\n"
+         "F1 opens the station handbook. Print Screen saves a picture in images/.\n"
          "All applications share a 2 MiB virtual disk and 4096 KiB simulated RAM.\n\n"
          "PACKAGES\nInstall: aurora -i fastfetch htop tree grep coreutils\n"
          "Run: fastfetch, htop, tree, grep Aurora /etc/release\n"
          "Search: aurora -s text    List: aurora --list\n"
          "Installed: aurora -l     Remove: aurora -r htop\n"
          "Packages are simulated; installation never changes Linux.\n"
+         "Read live system information with cat /proc/meminfo or ls /proc.\n\n"
+         "LUA PROGRAMS\nOpen Lua Studio with mods. Drop .lua files in its selected mods/ folder.\n"
+         "Try aurora -i notepad todo, then run notepad or todo. Both save your work.\n"
+         "Run a virtual script with lua /home/guest/example.lua.\n\n"
          "Your files, settings, wallpaper and puzzle progress are saved automatically.\n");
     file("/home/guest/docs/journal.txt",
          "23 OCT 1986\n\nToday the A16 arrived. Our workshop has a window into the future.\n");
@@ -64,7 +69,7 @@ void SimSystem::seed() {
          "adapter / 960 x 640 / 4 tones\nSOUND: mono waveform generator\n",
          0444);
     file("/bin/README",
-         "Built-in applications: terminal files edit calc browser games packages about\nCommands are "
+         "Built-in applications: terminal files edit calc browser games packages about handbook mods lua\nCommands are "
          "interpreted by ASTER. Use aurora --list to browse optional packages.\n",
          0444);
     QByteArray ppm("P6\n160 100\n255\n");
@@ -85,6 +90,55 @@ bool SimSystem::fail(const QString &message) const {
     return false;
 }
 QString SimSystem::lastError() const { return m_error; }
+
+std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
+    if (!under(path, "/proc")) {
+        const auto it = m_entries.constFind(path);
+        return it == m_entries.cend() ? std::nullopt : std::optional<VEntry>(*it);
+    }
+    if (path == "/proc")
+        return VEntry{path, true, {}, 0555};
+    if (path == "/proc/cpuinfo")
+        return VEntry{path, false,
+                      "processor\t: 0\nvendor_id\t: Aurora Laboratories\nmodel name\t: A16\n"
+                      "cpu MHz\t\t: 8\nbus width\t: 16 bits\n",
+                      0444};
+    if (path == "/proc/meminfo")
+        return VEntry{path, false,
+                      QString("MemTotal: %1 kB\nMemFree: %2 kB\nMemUsed: %3 kB\n")
+                          .arg(MemoryKiB)
+                          .arg(MemoryKiB - usedMemoryKiB())
+                          .arg(usedMemoryKiB())
+                          .toUtf8(),
+                      0444};
+    if (path == "/proc/uptime")
+        return VEntry{path, false, QByteArray::number(m_uptime.elapsed() / 1000.0, 'f', 2) + "\n", 0444};
+    const QStringList parts = path.mid(6).split('/');
+    if (parts.isEmpty() || parts.size() > 2)
+        return std::nullopt;
+    bool valid = false;
+    const int pid = parts.first().toInt(&valid);
+    if (!valid || QString::number(pid) != parts.first())
+        return std::nullopt;
+    for (const auto &process : m_processes) {
+        if (process.pid != pid)
+            continue;
+        if (parts.size() == 1)
+            return VEntry{path, true, {}, 0555};
+        if (parts.last() == "cmdline")
+            return VEntry{path, false, process.name.toUtf8() + '\0', 0444};
+        if (parts.last() == "status")
+            return VEntry{path, false,
+                          QString("Name:\t%1\nState:\tR (simulated)\nPid:\t%2\nVmSize:\t%3 kB\n")
+                              .arg(process.name)
+                              .arg(pid)
+                              .arg(process.memoryKiB)
+                              .toUtf8(),
+                          0444};
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
 
 QString SimSystem::normalize(const QString &input, const QString &cwd) const {
     if (input.contains(QChar::Null) || input.contains('\n') || input.contains('\r')) {
@@ -123,10 +177,10 @@ bool SimSystem::accessible(const QString &path) const {
         return fail("Invalid path.");
     QString parent = path == "/" ? "/" : parentPath(path);
     while (true) {
-        const auto it = m_entries.constFind(parent);
-        if (it == m_entries.cend() || !it->directory)
+        const auto entry = entryFor(parent);
+        if (!entry || !entry->directory)
             return fail("Directory not found: " + parent);
-        if (!(it->permissions & 0100))
+        if (!(entry->permissions & 0100))
             return fail("Permission denied: " + parent);
         if (parent == "/")
             break;
@@ -155,13 +209,16 @@ bool SimSystem::writableParent(const QString &path) const {
 bool SimSystem::exists(const QString &input) const {
     m_error.clear();
     const QString path = normalize(input);
-    return accessible(path) && m_entries.contains(path);
+    return accessible(path) && entryFor(path).has_value();
 }
 
 bool SimSystem::isDirectory(const QString &input) const {
     m_error.clear();
     const QString path = normalize(input);
-    return accessible(path) && m_entries.contains(path) && m_entries.value(path).directory;
+    if (!accessible(path))
+        return false;
+    const auto entry = entryFor(path);
+    return entry && entry->directory;
 }
 
 QList<VEntry> SimSystem::list(const QString &input) const {
@@ -169,11 +226,12 @@ QList<VEntry> SimSystem::list(const QString &input) const {
     const QString path = normalize(input);
     if (!accessible(path))
         return {};
-    if (!m_entries.contains(path) || !m_entries.value(path).directory) {
+    const auto directory = entryFor(path);
+    if (!directory || !directory->directory) {
         fail("Directory not found: " + path);
         return {};
     }
-    if ((m_entries.value(path).permissions & 0500) != 0500) {
+    if ((directory->permissions & 0500) != 0500) {
         fail("Permission denied: " + path);
         return {};
     }
@@ -181,6 +239,17 @@ QList<VEntry> SimSystem::list(const QString &input) const {
     for (const auto &entry : m_entries)
         if (entry.path != path && parentPath(entry.path) == path)
             result.append(entry);
+    if (path == "/")
+        result.append(*entryFor("/proc"));
+    else if (path == "/proc") {
+        for (const QString &name : QStringList{"cpuinfo", "meminfo", "uptime"})
+            result.append(*entryFor(path + '/' + name));
+        for (const auto &process : m_processes)
+            result.append(*entryFor(path + '/' + QString::number(process.pid)));
+    } else if (under(path, "/proc")) {
+        result.append(*entryFor(path + "/cmdline"));
+        result.append(*entryFor(path + "/status"));
+    }
     std::sort(result.begin(), result.end(), [](const VEntry &a, const VEntry &b) {
         if (a.directory != b.directory)
             return a.directory;
@@ -194,20 +263,20 @@ QByteArray SimSystem::read(const QString &input) const {
     const QString path = normalize(input);
     if (!accessible(path))
         return {};
-    const auto it = m_entries.constFind(path);
-    if (it == m_entries.cend()) {
+    const auto entry = entryFor(path);
+    if (!entry) {
         fail("File not found: " + path);
         return {};
     }
-    if (it->directory) {
+    if (entry->directory) {
         fail("Is a directory: " + path);
         return {};
     }
-    if (!(it->permissions & 0400)) {
+    if (!(entry->permissions & 0400)) {
         fail("Permission denied: " + path);
         return {};
     }
-    return it->data;
+    return entry->data;
 }
 
 int SimSystem::usedBytes() const {
@@ -252,6 +321,8 @@ bool SimSystem::write(const QString &input, const QByteArray &data) {
 bool SimSystem::mkdir(const QString &input) {
     m_error.clear();
     const QString path = normalize(input);
+    if (under(path, "/proc"))
+        return fail("Protected system volume: " + path);
     if (m_entries.contains(path))
         return fail("Already exists: " + path);
     if (!writableParent(path))
@@ -266,6 +337,8 @@ bool SimSystem::mkdir(const QString &input) {
 bool SimSystem::remove(const QString &input, bool recursive) {
     m_error.clear();
     const QString path = normalize(input);
+    if (under(path, "/proc"))
+        return fail("Protected system volume: " + path);
     if (!m_entries.contains(path))
         return fail("Not found: " + path);
     if (!writableParent(path))
@@ -289,6 +362,8 @@ bool SimSystem::move(const QString &input, const QString &destination) {
     m_error.clear();
     const QString source = normalize(input);
     QString target = normalize(destination);
+    if (under(source, "/proc") || under(target, "/proc"))
+        return fail("Protected system volume: /proc");
     if (!m_entries.contains(source))
         return fail("Not found: " + source);
     if (!accessible(target))
@@ -326,7 +401,8 @@ bool SimSystem::copy(const QString &input, const QString &destination) {
     if (!m_error.isEmpty())
         return false;
     QString target = normalize(destination);
-    if (m_entries.contains(target) && m_entries.value(target).directory)
+    const auto targetEntry = entryFor(target);
+    if (targetEntry && targetEntry->directory)
         target += (target == "/" ? "" : "/") + source.section('/', -1);
     if (target == source)
         return fail("Source and destination are the same.");
@@ -336,6 +412,8 @@ bool SimSystem::copy(const QString &input, const QString &destination) {
 bool SimSystem::chmod(const QString &input, int permissions) {
     m_error.clear();
     const QString path = normalize(input);
+    if (under(path, "/proc"))
+        return fail("Protected system volume: " + path);
     if (!accessible(path))
         return false;
     if (!m_entries.contains(path))
@@ -406,7 +484,8 @@ bool SimSystem::load() {
         const auto obj = value.toObject();
         const auto path = obj.value("path").toString();
         const int permissions = obj.value("permissions").toInt(-1);
-        if (path.isEmpty() || !path.startsWith('/') || normalize(path) != path || loaded.contains(path) ||
+        if (path.isEmpty() || !path.startsWith('/') || normalize(path) != path ||
+            under(path, "/proc") || loaded.contains(path) ||
             permissions < 0 || permissions > 0777 || !obj.value("directory").isBool() ||
             !obj.value("data").isString())
             return invalid();
@@ -460,6 +539,7 @@ int SimSystem::startProcess(const QString &name, int memoryKiB) {
     const int pid = m_nextPid++;
     m_processes.append({pid, name, memoryKiB});
     emit processesChanged();
+    emit changed();
     return pid;
 }
 bool SimSystem::stopProcess(int pid) {
@@ -470,6 +550,7 @@ bool SimSystem::stopProcess(int pid) {
         if (m_processes[i].pid == pid) {
             m_processes.removeAt(i);
             emit processesChanged();
+            emit changed();
             return true;
         }
     return fail("Process not found.");

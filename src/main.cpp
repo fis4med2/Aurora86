@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         if (!QDir().mkpath(folder))
             folder = state + "/mods";
         if (QDir().mkpath(folder)) {
-            for (const QString &name : QStringList{"hello", "notepad", "theme-switcher"}) {
+            for (const QString &name : QStringList{"hello", "notepad", "todo", "theme-switcher"}) {
                 const QString target = folder + "/" + name + ".lua";
                 if (!QFile::exists(target) && QFile::copy(":/mods/" + name + ".lua", target))
                     QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
         QTimer::singleShot(50, &desktop, [&] {
             for (const QString &id :
                  QStringList{"files", "editor", "calc", "image", "settings", "monitor", "snake", "blocks",
-                             "prism", "garden", "echo", "games", "about"})
+                             "prism", "garden", "echo", "games", "about", "handbook"})
                 desktop.launch(id);
             auto *calculator = desktop.findChild<QLineEdit *>("calculatorInput");
             bool ok = loaded && calculator;
@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
             } else
                 ok = false;
             auto *area = desktop.findChild<QMdiArea *>("desktopArea");
-            ok = ok && area && area->subWindowList().size() == 14 && system.processes().size() == 16;
+            ok = ok && area && area->subWindowList().size() == 15 && system.processes().size() == 17;
             bool initiallyFull = desktop.isFullScreen();
             desktop.toggleFullscreen();
             ok = ok && desktop.isFullScreen() != initiallyFull;
@@ -190,11 +190,11 @@ int main(int argc, char **argv) {
                             break;
                         }
                 }
-                ok = ok && system.processes().size() == 15;
+                ok = ok && system.processes().size() == 16;
             }
             std::cout
                 << (ok ? "PASS" : "FAIL")
-                << ": desktop, 14 applications, terminal, editor, calculator, processes and fullscreen\n";
+                << ": desktop, 15 applications, terminal, editor, calculator, processes and fullscreen\n";
             app.exit(ok ? 0 : 1);
         });
     return app.exec();

@@ -7,6 +7,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <algorithm>
 
 class CoreTest : public QObject {
     Q_OBJECT
@@ -79,6 +80,103 @@ class CoreTest : public QObject {
         QVERIFY(!system.stopProcess(1));
         QVERIFY(system.stopProcess(pid));
         QCOMPARE(system.usedMemoryKiB(), 512);
+    }
+
+    void procTracksSimulatedProcesses() {
+        QTemporaryDir dir;
+        SimSystem system(dir.path());
+        QVERIFY(system.load());
+        const int used = system.usedBytes();
+        QVERIFY(system.isDirectory("/proc"));
+        const auto root = system.list("/");
+        QVERIFY(std::any_of(root.cbegin(), root.cend(), [](const VEntry &entry) {
+            return entry.path == "/proc" && entry.directory && entry.permissions == 0555;
+        }));
+        QVERIFY(system.read("/proc/cpuinfo").contains("A16"));
+        QCOMPARE(system.read("/proc/meminfo"),
+                 QByteArray("MemTotal: 4096 kB\nMemFree: 3584 kB\nMemUsed: 512 kB\n"));
+        const double before = system.read("/proc/uptime").trimmed().toDouble();
+        QTest::qWait(30);
+        QVERIFY(system.read("/proc/uptime").trimmed().toDouble() > before);
+        const int pid = system.startProcess("writer", 128);
+        QVERIFY(pid > 2);
+        const QString path = "/proc/" + QString::number(pid);
+        QVERIFY(system.exists(path + "/cmdline"));
+        QCOMPARE(system.read(path + "/cmdline"), QByteArray("writer\0", 7));
+        QVERIFY(system.read(path + "/status").contains("VmSize:\t128 kB"));
+        QCOMPARE(system.list(path).size(), 2);
+        QCOMPARE(system.list("/proc").size(), 6);
+        QVERIFY(system.read("/proc/meminfo").contains("MemFree: 3456 kB"));
+        QVERIFY(!system.exists("/proc/03"));
+        QVERIFY(!system.exists("/proc/self"));
+        QCOMPARE(system.usedBytes(), used);
+        QVERIFY(system.stopProcess(pid));
+        QVERIFY(!system.exists(path));
+        QVERIFY(system.read(path + "/cmdline").isEmpty());
+        QVERIFY(!system.lastError().isEmpty());
+        QVERIFY(system.list(path).isEmpty());
+        QCOMPARE(system.read("/proc/meminfo"),
+                 QByteArray("MemTotal: 4096 kB\nMemFree: 3584 kB\nMemUsed: 512 kB\n"));
+    }
+
+    void procIsReadOnlyAndVolatile() {
+        QTemporaryDir dir;
+        SimSystem system(dir.path());
+        QVERIFY(system.load());
+        const int used = system.usedBytes();
+        QVERIFY(!system.write("/proc/cpuinfo", "replacement"));
+        QVERIFY(!system.write("/proc/new", "new"));
+        QVERIFY(!system.mkdir("/proc/new"));
+        QVERIFY(!system.remove("/proc", true));
+        QVERIFY(!system.remove("/proc/cpuinfo"));
+        QVERIFY(!system.move("/proc/cpuinfo", "cpuinfo"));
+        QVERIFY(!system.chmod("/proc/cpuinfo", 0777));
+        QCOMPARE(system.usedBytes(), used);
+        QVERIFY(system.copy("/proc/cpuinfo", "/home/guest"));
+        QCOMPARE(system.read("cpuinfo"), system.read("/proc/cpuinfo"));
+        QVERIFY(!system.move("cpuinfo", "/proc"));
+        QVERIFY(!system.copy("cpuinfo", "/proc"));
+        const int pid = system.startProcess("temporary", 64);
+        QVERIFY(pid > 2);
+        QVERIFY(system.copy("/proc/meminfo", "memory-snapshot.txt"));
+        QVERIFY(system.save());
+        QFile saved(dir.filePath("vfs.json"));
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        const auto entries = QJsonDocument::fromJson(saved.readAll()).object().value("entries").toArray();
+        for (const auto &entry : entries)
+            QVERIFY(!entry.toObject().value("path").toString().startsWith("/proc"));
+        SimSystem reopened(dir.path());
+        QVERIFY(reopened.load());
+        QVERIFY(reopened.exists("/proc/cpuinfo"));
+        QVERIFY(!reopened.exists("/proc/" + QString::number(pid)));
+        QCOMPARE(reopened.read("cpuinfo"), system.read("/proc/cpuinfo"));
+        QVERIFY(reopened.read("memory-snapshot.txt").contains("MemUsed: 576 kB"));
+        QVERIFY(reopened.read("/proc/meminfo").contains("MemUsed: 512 kB"));
+        QCOMPARE(reopened.usedMemoryKiB(), 512);
+    }
+
+    void savedStateCannotSpoofProc() {
+        QTemporaryDir dir;
+        SimSystem initial(dir.path());
+        QVERIFY(initial.load());
+        QFile saved(dir.filePath("vfs.json"));
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(saved.readAll()).object();
+        saved.close();
+        auto entries = root.value("entries").toArray();
+        entries.append(QJsonObject{{"path", "/proc"}, {"directory", true},
+                                   {"data", ""}, {"permissions", 0555}});
+        root["entries"] = entries;
+        const auto damaged = QJsonDocument(root).toJson();
+        QVERIFY(saved.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        saved.write(damaged);
+        saved.close();
+        SimSystem restored(dir.path());
+        QVERIFY(!restored.load());
+        QVERIFY(restored.read("/proc/cpuinfo").contains("A16"));
+        QVERIFY(!restored.save());
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        QCOMPARE(saved.readAll(), damaged);
     }
 
     void corruptStateIsPreserved() {

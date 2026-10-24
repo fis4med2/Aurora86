@@ -516,6 +516,26 @@ QWidget *createImageViewer(SimSystem *s, const QString &initial, QWidget *parent
         Q_UNUSED(w);
     };
     button("Load", row, load);
+    path->setObjectName("imagePath");
+    auto *exportButton = new QPushButton("Export to Linux...");
+    exportButton->setObjectName("imageExport");
+    row->addWidget(exportButton);
+    QObject::connect(exportButton, &QPushButton::clicked, w, [w, s, path, info] {
+        const QByteArray data = s->read(s->normalize(path->text()));
+        if (!s->lastError().isEmpty() || QImage::fromData(data).isNull()) {
+            info->setText("Load a readable virtual image before exporting.");
+            return;
+        }
+        const QString target = QFileDialog::getSaveFileName(
+            w, "Export image to Linux", QFileInfo(path->text()).fileName(), "Images (*);;All files (*)");
+        if (target.isEmpty())
+            return;
+        QSaveFile file(target);
+        if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit())
+            info->setText("Could not export image: " + file.errorString());
+        else
+            info->setText("Exported image to the selected Linux file.");
+    });
     QObject::connect(path, &QLineEdit::returnPressed, w, load);
     load();
     return w;
@@ -806,6 +826,58 @@ QWidget *createAbout(QWidget *parent) {
     text->setWordWrap(true);
     l->addWidget(text);
     l->addStretch();
+    return w;
+}
+QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
+    auto *w = new QWidget(parent);
+    auto *layout = column(w);
+    layout->addWidget(new QLabel("STATION HANDBOOK / F1"));
+    auto *tabs = new QTabWidget;
+    tabs->setObjectName("handbookTabs");
+    auto page = [tabs](const QString &title, const QString &text) {
+        auto *body = new QPlainTextEdit(text);
+        body->setReadOnly(true);
+        tabs->addTab(body, title);
+    };
+    page("Keyboard", "F1              Station handbook\n"
+                     "F11             Fullscreen / window\n"
+                     "Print Screen    Save this station's picture to Disk 0\n"
+                     "Ctrl+Alt+T      Open Terminal\n"
+                     "Ctrl+Alt+L      Lock auroraSYNC\n"
+                     "Alt+F4          Close the active application\n"
+                     "Ctrl+S          Save in Writer\n"
+                     "Tab             Complete a path in Terminal\n"
+                     "Up / Down       Terminal command history\n\n"
+                     "Move windows by their title bars. Resize at the lower-right corner.\n"
+                     "Restore minimized applications from the Windows menu.\n\n"
+                     "Screenshots stay in /home/guest/images/snap-NNNN.png.\n"
+                     "Atelier opens the picture. Export to Linux asks you for a destination.\n"
+                     "Your Linux desktop and other applications are never captured.");
+    page("Terminal", "Start here:\n\nhelp\nls -l\ncat README.txt\n"
+                     "echo Hello > docs/hello.txt\nedit docs/hello.txt\n\n"
+                     "Install useful tools:\n\naurora -i fastfetch htop tree grep coreutils manuals\n"
+                     "fastfetch\nhtop\nman grep\n\n"
+                     "Live virtual hardware:\n\ncat /proc/meminfo\ncat /proc/cpuinfo\nls /proc\n\n"
+                     "Commands use simulated files and processes. No Linux commands are executed.\n"
+                     "Disk capacity is 2048 KiB; RAM capacity is 4096 KiB.");
+    page("Lua", "No compiler needed. Open Lua Studio, then choose Open folder.\n"
+                "Put a UTF-8 file named my-app.lua in that mods/ folder.\n\n"
+                "Install and run it in Terminal:\n\naurora -i my-app\nmy-app\n\n"
+                "Try the included programs:\n\naurora -i hello notepad todo theme-switcher\nnotepad\n\n"
+                "Use Lua Studio's New program to start writing.\n"
+                "Edit the installed copy in Writer, save, then use Reload / run.\n\n"
+                "aurora.window creates text, inputs and buttons.\n"
+                "aurora.input reads or updates an input field.\n"
+                "aurora.read / write / list / mkdir use Disk 0.\n"
+                "aurora.theme / setting customize supported preferences.\n\n"
+                "Lua programs have bounded memory and execution time.\n"
+                "They cannot access Linux files, start native programs or load DLLs.");
+    layout->addWidget(tabs, 1);
+    auto *actions = new QHBoxLayout;
+    button("Terminal", actions, [launch] { launch("terminal", {}); });
+    button("Package Center", actions, [launch] { launch("packages", {}); });
+    button("Lua Studio", actions, [launch] { launch("lua-studio", {}); });
+    layout->addLayout(actions);
     return w;
 }
 QIcon appIcon(const QString &kind, QColor ink) {

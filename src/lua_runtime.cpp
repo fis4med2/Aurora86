@@ -17,6 +17,11 @@ constexpr int OutputLimit = 64 * 1024;
 constexpr int SourceLimit = 128 * 1024;
 constexpr int FileLimit = 256 * 1024;
 constexpr int InstructionLimit = 500000;
+constexpr int InputLimit = 4096;
+bool validInputText(const QString &value) {
+    return !value.contains(QChar::Null) && value.toUtf8().size() <= InputLimit &&
+           QString::fromUtf8(value.toUtf8()) == value;
+}
 } // namespace
 struct LuaRuntime::Impl {
     SimSystem *system;
@@ -27,6 +32,7 @@ struct LuaRuntime::Impl {
     QVariant value;
     QString title, text, apiError;
     QStringList labels;
+    QList<LuaInput> inputs, pendingInputs;
     std::vector<int> callbacks;
     bool truncated = false;
     explicit Impl(SimSystem *s) : system(s) {}
@@ -298,12 +304,107 @@ struct LuaRuntime::Impl {
         p->text = QString::fromUtf8(p->scratch);
         return 0;
     }
+    static bool inputText(lua_State *L, int index, int limit, Impl *p) {
+        if (lua_type(L, index) != LUA_TSTRING || !argument(L, index, limit, p) ||
+            p->scratch.contains('\0')) {
+            p->apiError = "Input fields require UTF-8 text within their size limit.";
+            return false;
+        }
+        if (QString::fromUtf8(p->scratch).toUtf8() != p->scratch) {
+            p->apiError = "Input fields require valid UTF-8 text.";
+            return false;
+        }
+        return true;
+    }
+    static int input(lua_State *L) {
+        charge(L, 500);
+        auto *p = self(L);
+        if (!inputText(L, 1, 32, p))
+            return failure(L);
+        int index = -1;
+        {
+            const QString id = QString::fromUtf8(p->scratch);
+            for (int i = 0; i < p->inputs.size(); ++i)
+                if (p->inputs[i].id == id) {
+                    index = i;
+                    break;
+                }
+        }
+        if (index < 0)
+            return p->failResult(L, "Unknown input field.");
+        if (lua_gettop(L) >= 2) {
+            if (!inputText(L, 2, InputLimit, p))
+                return failure(L);
+            p->inputs[index].value = QString::fromUtf8(p->scratch);
+            lua_pushboolean(L, true);
+            return 1;
+        }
+        p->scratch = p->inputs[index].value.toUtf8();
+        lua_pushlstring(L, p->scratch.constData(), size_t(p->scratch.size()));
+        return 1;
+    }
+    static int inputError(lua_State *L, const char *message) {
+        self(L)->pendingInputs.clear();
+        return luaL_error(L, "%s", message);
+    }
+    static void parseInputs(lua_State *L) {
+        auto *p = self(L);
+        p->pendingInputs.clear();
+        lua_getfield(L, 1, "inputs");
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            return;
+        }
+        if (!lua_istable(L, -1) || lua_rawlen(L, -1) > 8)
+            inputError(L, "aurora.window inputs must be a list of at most 8 fields.");
+        const auto count = lua_rawlen(L, -1);
+        for (size_t i = 1; i <= count; ++i) {
+            lua_rawgeti(L, -1, lua_Integer(i));
+            if (!lua_istable(L, -1))
+                inputError(L, "Each input field must be a table.");
+            p->pendingInputs.append(LuaInput{});
+            lua_getfield(L, -1, "id");
+            if (!inputText(L, -1, 32, p))
+                inputError(L, "Each input field needs an ASCII id of 1 to 32 characters.");
+            p->pendingInputs.last().id = QString::fromUtf8(p->scratch);
+            lua_pop(L, 1);
+            if (!QRegularExpression("^[A-Za-z][A-Za-z0-9_]{0,31}$")
+                     .match(p->pendingInputs.last().id).hasMatch())
+                inputError(L, "Each input id must start with a letter and use letters, digits or underscores.");
+            for (int previous = 0; previous + 1 < p->pendingInputs.size(); ++previous)
+                if (p->pendingInputs[previous].id == p->pendingInputs.last().id)
+                    inputError(L, "Input ids must be unique.");
+            p->pendingInputs.last().label = p->pendingInputs.last().id;
+            lua_getfield(L, -1, "label");
+            if (!lua_isnil(L, -1)) {
+                if (!inputText(L, -1, 80, p))
+                    inputError(L, "Input labels must be UTF-8 text of at most 80 bytes.");
+                p->pendingInputs.last().label = QString::fromUtf8(p->scratch);
+            }
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "value");
+            if (!lua_isnil(L, -1)) {
+                if (!inputText(L, -1, InputLimit, p))
+                    inputError(L, "Input values must be UTF-8 text of at most 4096 bytes.");
+                p->pendingInputs.last().value = QString::fromUtf8(p->scratch);
+            }
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "multiline");
+            if (!lua_isnil(L, -1) && !lua_isboolean(L, -1))
+                inputError(L, "The input multiline option must be a boolean.");
+            p->pendingInputs.last().multiline = lua_toboolean(L, -1);
+            lua_pop(L, 2);
+        }
+        lua_pop(L, 1);
+    }
     static int window(lua_State *L) {
         auto *p = self(L);
         if (!lua_istable(L, 1)) {
             p->apiError = "aurora.window expects a table.";
             return failure(L);
         }
+        parseInputs(L);
+        p->inputs = std::move(p->pendingInputs);
         for (int ref : p->callbacks)
             luaL_unref(L, LUA_REGISTRYINDEX, ref);
         p->callbacks.clear();
@@ -350,6 +451,8 @@ struct LuaRuntime::Impl {
         used = 0;
         callbacks.clear();
         labels.clear();
+        inputs.clear();
+        pendingInputs.clear();
         title.clear();
         text.clear();
         output.clear();
@@ -392,10 +495,11 @@ struct LuaRuntime::Impl {
         lua_pop(state, 1);
         lua_pushcfunction(state, &print);
         lua_setglobal(state, "print");
-        lua_createtable(state, 0, 10);
+        lua_createtable(state, 0, 11);
         const luaL_Reg functions[] = {{"read", &read},     {"write", &write},     {"list", &list},
                                       {"mkdir", &mkdir},   {"setting", &setting}, {"theme", &theme},
                                       {"notify", &notify}, {"window", &window},   {"text", &textApi},
+                                      {"input", &input},
                                       {nullptr, nullptr}};
         luaL_setfuncs(state, functions, 0);
         lua_setglobal(state, "aurora");
@@ -404,7 +508,7 @@ struct LuaRuntime::Impl {
     LuaResult result(bool ok, const QString &error = {}) const {
         return {ok,    QString::fromUtf8(output) + (truncated ? "\n[output truncated at 64 KiB]" : QString()),
                 error, title,
-                text,  labels};
+                text,  labels, inputs};
     }
     LuaResult execute(int nargs) {
         remaining = InstructionLimit;
@@ -422,6 +526,16 @@ struct LuaRuntime::Impl {
 };
 LuaRuntime::LuaRuntime(SimSystem *system) : impl_(std::make_unique<Impl>(system)) {}
 LuaRuntime::~LuaRuntime() = default;
+bool LuaRuntime::setInput(const QString &id, const QString &value) {
+    if (!validInputText(value))
+        return false;
+    for (auto &input : impl_->inputs)
+        if (input.id == id) {
+            input.value = value;
+            return true;
+        }
+    return false;
+}
 LuaResult LuaRuntime::run(const QByteArray &source, const QString &name) {
     if (source.isEmpty() || source.size() > SourceLimit || source.contains('\0') || source.startsWith('\x1b'))
         return {false, {}, "Expected a text Lua program between 1 byte and 128 KiB.", {}, {}, {}};

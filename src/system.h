@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariant>
+#include <optional>
 
 struct VEntry {
     QString path;
@@ -65,6 +66,7 @@ class SimSystem : public QObject {
     bool m_blocked = false;
     int m_nextPid = 3;
     void seed();
+    std::optional<VEntry> entryFor(const QString &path) const;
     bool fail(const QString &message) const;
     bool accessible(const QString &path) const;
     bool writableParent(const QString &path) const;

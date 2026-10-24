@@ -77,7 +77,7 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.2.0" date="2026-10-24"><description><p>Add an English OS, auroraSYNC local login, customizable profiles and virtual resolutions, simulated packages, and embedded Lua programs and mods.</p><p xml:lang="pt_BR">Adiciona OS em inglês, login local auroraSYNC, perfis e resolução virtual personalizáveis, pacotes simulados e programas e mods Lua incorporados.</p></description></release>
+    <release version="1.2.0" date="2026-10-24"><description><p>Add an English OS, auroraSYNC local login, customizable profiles and virtual resolutions, simulated packages, editable Lua programs and mods, a live virtual /proc, F1 help, and screen capture.</p><p xml:lang="pt_BR">Adiciona OS em inglês, login local auroraSYNC, perfis e resolução virtual personalizáveis, pacotes simulados, programas Lua editáveis, /proc virtual ao vivo, ajuda F1 e captura de tela.</p></description></release>
     <release version="1.1.0" date="2026-10-23">
       <description>
         <p>Add custom wallpapers, larger readable fonts, and three new games: Prisma, Jardim Orbital, and Eco.</p>

@@ -140,9 +140,11 @@ metadata = ('AURORA/86 Linux x86_64\n'
             f'glibc mínima exigida pelas bibliotecas empacotadas: {version[0]}.{version[1]}\n'
             'Requer kernel Linux, glibc, sessão gráfica X11/Wayland e drivers gráficos do host.\n'
             'Qt, WebEngine/Chromium, recursos web, fontes e áudio incluídos.\n'
+            'Lua 5.4 incorporado; programas e mods não exigem instalação separada.\n'
             'Sandbox Chromium preservada. Navegação requer acesso à rede.\n'
             'Bibliotecas fornecidas pelo host: ' + ', '.join(sorted(host_dependencies)) + '\n')
 (stage / 'COMPATIBILITY.txt').write_text(metadata)
+(root / 'outputs').mkdir(exist_ok=True)
 (root / 'outputs/COMPATIBILIDADE.txt').write_text(metadata + '\nExecutar:\n  chmod +x AURORA86-x86_64.AppImage\n  ./AURORA86-x86_64.AppImage\n\nSem FUSE:\n  ./AURORA86-x86_64.AppImage --appimage-extract-and-run\n\nExtrair:\n  ./AURORA86-x86_64.AppImage --appimage-extract\n  ./squashfs-root/AppRun\n')
 licence_root = stage / 'usr/share/licenses'
 common = pathlib.Path('/usr/share/licenses/common')
@@ -166,6 +168,12 @@ for source in (root / 'packaging').glob('*LICENSE*'):
 for name in ('LICENSE', 'README.md', 'README.pt-BR.md'):
     if (root / name).is_file():
         shutil.copy2(root / name, stage / name)
+shutil.copytree(root / 'mods', stage / 'mods')
+for source in root.glob('AURORA86-*.png'):
+    shutil.copy2(source, stage / source.name)
+(licence_root / 'lua').mkdir()
+for name in ('LICENSE.txt', 'UPSTREAM.txt'):
+    shutil.copy2(root / 'third_party/lua' / name, licence_root / 'lua' / name)
 (stage / 'usr/share/licenses/BUNDLED-LIBRARIES.txt').write_text('\n'.join(f'{soname} <- {source}' for soname, source in sorted(dependencies.items())) + '\n')
 (licence_root / 'UPSTREAM-SOURCES.txt').write_text(
     'Dependências distribuídas sem alterações binárias, obtidas dos pacotes do host de build.\n'
@@ -174,6 +182,7 @@ for name in ('LICENSE', 'README.md', 'README.pt-BR.md'):
     'Qt: https://download.qt.io/official_releases/qt/\n'
     'Chromium: https://chromium.googlesource.com/chromium/src/\n'
     'FFmpeg: https://ffmpeg.org/releases/\n'
+    'Lua 5.4.8: https://www.lua.org/ftp/lua-5.4.8.tar.gz\n'
     'Runtime AppImage 20251108: https://github.com/AppImage/type2-runtime/releases/tag/20251108\n'
     'Ferramenta AppImage 1.9.1: https://github.com/AppImage/appimagetool/releases/tag/1.9.1\n')
 print(f'AppDir: {len(dependencies)} bibliotecas; glibc >= {version[0]}.{version[1]}')
