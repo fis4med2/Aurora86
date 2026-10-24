@@ -2,12 +2,14 @@
 #include "audio.h"
 #include "system.h"
 #include <QImage>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMdiArea>
 #include <QStackedWidget>
 #include <QTimer>
 class LoginScreen;
+class ScreenSaver;
 class QScrollArea;
 class Desktop : public QMainWindow {
     Q_OBJECT
@@ -19,6 +21,7 @@ class Desktop : public QMainWindow {
     QString captureVirtualScreen();
     void lockSession();
     bool isSessionLocked() const { return locked_; }
+    void showKeyboardReference();
 
   protected:
     void closeEvent(QCloseEvent *) override;
@@ -37,6 +40,12 @@ class Desktop : public QMainWindow {
     QLabel *clock_ = nullptr, *meter_ = nullptr;
     QWidget *boot_ = nullptr;
     QTimer *bootTimer_ = nullptr;
+    ScreenSaver *saver_ = nullptr;
+    QTimer *idleTimer_ = nullptr;
+    qint64 lastActivity_ = 0;
+    QWidget *taskbar_ = nullptr;
+    QHBoxLayout *taskbarLayout_ = nullptr;
+    QString taskbarSignature_;
     QString activeTheme_;
     bool activeScanlines_ = true;
     int activeFontSize_ = 16;
@@ -55,4 +64,7 @@ class Desktop : public QMainWindow {
     void beginBoot();
     void updateMeters();
     void wallpaper();
+    void refreshTaskbar();
+    void noteActivity();
+    void checkIdle();
 };

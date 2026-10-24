@@ -21,7 +21,8 @@ class PackageManager final {
     QString remove(const QStringList &names);
     QString search(const QString &query) const;
     QString info(const QString &name) const;
-    QString run(const QString &command, const QStringList &args, const QString &cwd);
+    QString run(const QString &command, const QStringList &args, const QString &cwd,
+                const QString &standardInput = QString());
     bool ownsCommand(const QString &command) const;
 
   private:

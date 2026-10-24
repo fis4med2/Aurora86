@@ -3,7 +3,9 @@
 #include "system.h"
 #include <QImageReader>
 #include <QTemporaryDir>
+#if AURORA_WITH_WEBENGINE
 #include <QWebEngineView>
+#endif
 #include <QtWidgets>
 #include <iostream>
 int main(int argc, char **argv) {
@@ -13,7 +15,7 @@ int main(int argc, char **argv) {
     app.setApplicationName("AURORA86");
     app.setDesktopFileName("io.github.fis4med2.Aurora86");
     app.setOrganizationName("Aurora");
-    app.setApplicationVersion("1.2.0");
+    app.setApplicationVersion("1.3.0");
     app.setStyle("Fusion");
     QImageReader::setAllocationLimit(16);
     QFontDatabase::addApplicationFont(":/fonts/AuroraFixed.ttf");
@@ -100,6 +102,13 @@ int main(int argc, char **argv) {
             desktop.screenshot(parser.value("boot-screenshot"));
             app.exit(0);
         });
+#if !AURORA_WITH_WEBENGINE
+    if (parser.isSet("browser-check")) {
+        std::cerr << "FAIL: this build has no Qt WebEngine\n";
+        app.exit(1);
+    }
+#endif
+#if AURORA_WITH_WEBENGINE
     if (parser.isSet("browser-check"))
         QTimer::singleShot(100, &desktop, [&] {
             desktop.launch("browser");
@@ -136,6 +145,7 @@ int main(int argc, char **argv) {
                 app.exit(1);
             });
         });
+#endif
     if (test)
         QTimer::singleShot(50, &desktop, [&] {
             for (const QString &id :

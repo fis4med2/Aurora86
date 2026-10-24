@@ -1,4 +1,5 @@
 #include "desktop.h"
+#include "screensaver.h"
 #include "apps.h"
 #include "creative_games.h"
 #include "display.h"
@@ -162,6 +163,11 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     resolutionTimer_->setInterval(200);
     connect(resolutionTimer_, &QTimer::timeout, this, &Desktop::recordResolution);
     speaker_ = new Speaker(s, this);
+    idleTimer_ = new QTimer(this);
+    idleTimer_->setInterval(5000);
+    connect(idleTimer_, &QTimer::timeout, this, &Desktop::checkIdle);
+    idleTimer_->start();
+    lastActivity_ = QDateTime::currentMSecsSinceEpoch();
     applyTheme();
     qApp->installEventFilter(this);
     auto *full = new QShortcut(QKeySequence(Qt::Key_F11), this);
@@ -178,6 +184,10 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     auto *capture = new QShortcut(QKeySequence(Qt::Key_Print), this);
     capture->setObjectName("screenshotShortcut");
     connect(capture, &QShortcut::activated, this, [this] { captureVirtualScreen(); });
+    auto *reference = new QShortcut(QKeySequence("Shift+F1"), this);
+    reference->setObjectName("referenceShortcut");
+    reference->setContext(Qt::ApplicationShortcut);
+    connect(reference, &QShortcut::activated, this, &Desktop::showKeyboardReference);
     auto *close = new QShortcut(QKeySequence("Alt+F4"), this);
     connect(close, &QShortcut::activated, this, [this] {
         if (locked_)
@@ -420,13 +430,22 @@ void Desktop::startDesktop() {
     });
     auto *help = bar->addMenu("Help");
     action(help, "Station handbook    F1", "handbook");
+    auto *reference = help->addAction("Keyboard reference    Shift+F1");
+    connect(reference, &QAction::triggered, this, &Desktop::showKeyboardReference);
     action(help, "About this station", "about");
     clock_ = new QLabel;
     clock_->setContentsMargins(12, 0, 12, 0);
     bar->setCornerWidget(clock_, Qt::TopRightCorner);
     meter_ = new QLabel;
     statusBar()->addWidget(new QLabel("  A16  /  DISK 0: ONLINE"));
+    taskbar_ = new QWidget;
+    taskbar_->setObjectName("taskbar");
+    taskbarLayout_ = new QHBoxLayout(taskbar_);
+    taskbarLayout_->setContentsMargins(8, 0, 8, 0);
+    taskbarLayout_->setSpacing(4);
+    statusBar()->addWidget(taskbar_, 1);
     statusBar()->addPermanentWidget(meter_);
+    refreshTaskbar();
     statusBar()->setSizeGripEnabled(false);
     const QStringList desktopIds = {"terminal", "files", "editor", "browser", "games", "settings"};
     const QStringList names = {"Terminal", "Disk 0:", "Writer", "Network", "Games", "Control"};
@@ -477,6 +496,10 @@ void Desktop::launch(const QString &requested, const QString &path) {
         id = "blocks";
     if (id == "edit")
         id = "editor";
+    if (id == "capture") {
+        captureVirtualScreen();
+        return;
+    }
     if (id == "close") {
         if (area_->activeSubWindow())
             area_->activeSubWindow()->close();
@@ -584,10 +607,110 @@ void Desktop::launch(const QString &requested, const QString &path) {
     content->setFocus();
     speaker_->play("operation");
 }
+void Desktop::refreshTaskbar()
+{
+    if (!taskbarLayout_ || !area_)
+        return;
+    QStringList titles;
+    for (auto *window : area_->subWindowList())
+        if (window->isVisible())
+            titles << window->windowTitle();
+    const QString signature = titles.join('|');
+    if (signature == taskbarSignature_)
+        return;
+    taskbarSignature_ = signature;
+    while (QLayoutItem *item = taskbarLayout_->takeAt(0)) {
+        if (auto *widget = item->widget())
+            widget->deleteLater();
+        delete item;
+    }
+    if (titles.isEmpty()) {
+        auto *hint = new QLabel("NO WINDOWS  /  Ctrl+Alt+T opens the terminal");
+        hint->setObjectName("taskbarHint");
+        taskbarLayout_->addWidget(hint);
+        return;
+    }
+    for (auto *window : area_->subWindowList()) {
+        if (!window->isVisible())
+            continue;
+        auto *button = new QToolButton(taskbar_);
+        button->setObjectName("taskbarButton");
+        button->setText(window->windowTitle());
+        button->setToolTip("Restore " + window->windowTitle());
+        button->setAutoRaise(true);
+        button->setMaximumWidth(210);
+        connect(button, &QToolButton::clicked, this, [this, window] {
+            window->showNormal();
+            area_->setActiveSubWindow(window);
+            window->raise();
+        });
+        taskbarLayout_->addWidget(button);
+    }
+}
+
+void Desktop::noteActivity() { lastActivity_ = QDateTime::currentMSecsSinceEpoch(); }
+
+void Desktop::checkIdle()
+{
+    if (!started_ || locked_ || !isVisible())
+        return;
+    const int minutes = qBound(0, system_->setting("screensaverMinutes", 5).toInt(), 240);
+    if (minutes <= 0) {
+        if (saver_ && saver_->running())
+            saver_->stop();
+        return;
+    }
+    if (saver_ && saver_->running())
+        return;
+    if (lastActivity_ == 0)
+        lastActivity_ = QDateTime::currentMSecsSinceEpoch();
+    if (QDateTime::currentMSecsSinceEpoch() - lastActivity_ < qint64(minutes) * 60000)
+        return;
+    if (!saver_) {
+        saver_ = new ScreenSaver(this);
+        connect(saver_, &ScreenSaver::dismissed, this, [this] {
+            if (saver_)
+                saver_->stop();
+            noteActivity();
+            if (system_->setting("lockOnWake", false).toBool())
+                lockSession();
+        });
+    }
+    saver_->start();
+}
+
+void Desktop::showKeyboardReference()
+{
+    QMessageBox box(this);
+    box.setWindowTitle("AURORA / keyboard reference");
+    box.setTextFormat(Qt::RichText);
+    box.setText(
+        "<b>Session</b><br>"
+        "F11 — fullscreen &nbsp;&nbsp; Ctrl+Alt+L — lock &nbsp;&nbsp; Alt+F4 — close window<br>"
+        "Ctrl+Alt+T — terminal &nbsp;&nbsp; PrtSc — capture screen<br>"
+        "F1 — station handbook &nbsp;&nbsp; Shift+F1 — this list<br><br>"
+        "<b>ASTER shell</b><br>"
+        "<code>help</code> lists every command.<br>"
+        "Pipes: <code>ls | grep txt</code> &nbsp; Sequences: <code>cmd ; cmd</code>, <code>cmd &amp;&amp; cmd</code><br>"
+        "Variables: <code>$HOME</code>, <code>$USER</code>, <code>$?</code> &nbsp; "
+        "<code>export NAME=value</code>, <code>alias ll=ls -l</code><br>"
+        "Wildcards: <code>*.txt</code>, <code>docs/*</code> &nbsp; History: <code>history</code><br>"
+        "Printing: <code>lpr FILE</code>, <code>lpq</code>, <code>lprm all</code><br>"
+        "Archives: <code>pack APP.ARC FILE...</code>, <code>arc -l APP.ARC</code>, "
+        "<code>unpack APP.ARC DIR</code><br>"
+        "Live system files: <code>cat /proc/meminfo</code>, <code>/proc/cpuinfo</code>, "
+        "<code>/proc/uptime</code><br><br>"
+        "<b>A16 BASIC</b><br>"
+        "Type <code>basic</code> in the terminal. Store lines with numbers, then <code>RUN</code>, "
+        "<code>LIST</code>, <code>SAVE NAME.BAS</code> and <code>SYSTEM</code> to return.");
+    box.exec();
+}
+
 void Desktop::updateMeters() {
     if (!clock_)
         return;
     clock_->setText(simulatedTime(system_).toString("dd/MM/yyyy  HH:mm:ss"));
+    refreshTaskbar();
     meter_->setText(QString("%1 KiB FREE   /   %2 PROCESSES   ")
                         .arg(SimSystem::MemoryKiB - system_->usedMemoryKiB())
                         .arg(system_->processes().size()));
@@ -698,6 +821,9 @@ bool Desktop::eventFilter(QObject *object, QEvent *event) {
         QTimer::singleShot(0, this, &Desktop::wallpaper);
         resolutionTimer_->start();
     }
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::MouseButtonPress ||
+        event->type() == QEvent::MouseMove || event->type() == QEvent::Wheel)
+        noteActivity();
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (!key->isAutoRepeat() && !key->text().isEmpty())

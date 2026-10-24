@@ -3,12 +3,14 @@
 #include "login.h"
 #include "shell.h"
 #include "wallpaper.h"
+#if AURORA_WITH_WEBENGINE
 #include <QWebEngineDownloadRequest>
 #include <QWebEnginePermission>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineView>
+#endif
 #include <QtWidgets>
 #include <cmath>
 #include <stdexcept>
@@ -87,6 +89,8 @@ class Terminal final : public QWidget {
         connect(shell_, &Shell::launchRequested, this,
                 [launch](const QString &app, const QString &path) { launch(app, path); });
         connect(shell_, &Shell::shutdownRequested, this, [this] { window()->close(); });
+        connect(shell_, &Shell::soundRequested, this,
+                [this](const QString &event) { speaker_->play(event); });
         connect(system_, &SimSystem::settingsChanged, this, [this] { prompt_->setText(shell_->prompt()); });
     }
     bool eventFilter(QObject *o, QEvent *e) override {
@@ -288,6 +292,7 @@ class Expression {
         return n;
     }
 };
+#if AURORA_WITH_WEBENGINE
 class NetworkFence : public QWebEngineUrlRequestInterceptor {
   public:
     using QWebEngineUrlRequestInterceptor::QWebEngineUrlRequestInterceptor;
@@ -311,6 +316,7 @@ class BrowserPage : public QWebEnginePage {
     }
     QWebEnginePage *createWindow(WebWindowType) override { return nullptr; }
 };
+#endif // AURORA_WITH_WEBENGINE
 } // namespace
 
 QWidget *createTerminal(SimSystem *s, Speaker *a, AppLauncher l, QWidget *p) {
@@ -556,7 +562,7 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     tabs->addTab(createWallpaperPanel(s), "Wallpaper");
     tabs->addTab(createIdentityPanel(s), "auroraSYNC");
     tabs->addTab(createDisplayPanel(s), "Display");
-    auto *title = new QLabel("CONTROL PANEL / AURORA 1.2");
+    auto *title = new QLabel("CONTROL PANEL / AURORA 1.3");
     l->addWidget(title);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -621,7 +627,7 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
     Q_UNUSED(s);
     auto *w = new QWidget(parent);
     auto *l = column(w);
-    auto *heading = new QLabel("GAMES ROOM / AURORA 1.2");
+    auto *heading = new QLabel("GAMES ROOM / AURORA 1.3");
     l->addWidget(heading);
     auto *intro = new QLabel("Five experiences. Pick one to begin.");
     intro->setWordWrap(true);
@@ -706,6 +712,24 @@ QWidget *createMonitor(SimSystem *s, QWidget *parent) {
     return w;
 }
 QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, QWidget *parent) {
+#if !AURORA_WITH_WEBENGINE
+    // Portable build: no Chromium available, so the station shows a local notice page.
+    Q_UNUSED(s);
+    Q_UNUSED(speaker);
+    Q_UNUSED(initial);
+    auto *w = new QWidget(parent);
+    auto *l = column(w);
+    l->addWidget(new QLabel("N E T W O R K   /   O F F L I N E"));
+    auto *text = new QLabel("This AURORA/86 build was compiled without Qt WebEngine.\n\n"
+                            "The rest of the station works normally: terminal, A16 BASIC,\n"
+                            "Disk 0:, Writer, packages, Lua programs, games and /proc.\n\n"
+                            "Build again with Qt WebEngineWidgets available to browse\n"
+                            "the real internet from this window.");
+    text->setWordWrap(true);
+    l->addWidget(text);
+    l->addStretch();
+    return w;
+#else
     auto *w = new QWidget(parent);
     auto *l = column(w);
     auto *row = new QHBoxLayout;
@@ -813,13 +837,14 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
         go();
     }
     return w;
+#endif // AURORA_WITH_WEBENGINE
 }
 QWidget *createAbout(QWidget *parent) {
     auto *w = new QWidget(parent);
     auto *l = column(w);
     auto *text = new QLabel("A U R O R A  /  8 6\n\nPERSONAL RESEARCH WORKSTATION\n"
                             "A16 series • 8 MHz • 4096 KiB\n2048 KiB magnetic disk\n\n"
-                            "AURORA system 1.2 / October 1986\nA small station. An entire world.\n\n"
+                            "AURORA system 1.3 / October 1986\nA small station. An entire world.\n\n"
                             "Hardware and processes are simulated.\nApplications built with C++ / Qt.\n"
                             "Browsing uses Chromium and the real internet.\n\n"
                             "F11  fullscreen      Ctrl+S  save\nTab  complete        ↑ / ↓   history");
@@ -840,6 +865,7 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
         tabs->addTab(body, title);
     };
     page("Keyboard", "F1              Station handbook\n"
+                     "Shift+F1        Keyboard reference card\n"
                      "F11             Fullscreen / window\n"
                      "Print Screen    Save this station's picture to Disk 0\n"
                      "Ctrl+Alt+T      Open Terminal\n"

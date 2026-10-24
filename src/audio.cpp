@@ -1,7 +1,12 @@
 #include "audio.h"
 #include <QGuiApplication>
-#include <QMediaDevices>
 #include <QtMath>
+#if AURORA_WITH_MULTIMEDIA
+#include <QAudioDevice>
+#include <QMediaDevices>
+#endif
+
+#if AURORA_WITH_MULTIMEDIA
 Speaker::Speaker(SimSystem *s, QObject *p) : QObject(p), system_(s) {
     if (QGuiApplication::platformName() == "offscreen" || QGuiApplication::platformName() == "minimal" ||
         qEnvironmentVariableIsSet("AURORA_NO_AUDIO"))
@@ -49,3 +54,7 @@ void Speaker::play(const QString &event) {
     buffer_->open(QIODevice::ReadOnly);
     sink_->start(buffer_);
 }
+#else
+Speaker::Speaker(SimSystem *s, QObject *p) : QObject(p), system_(s) { Q_UNUSED(system_); }
+void Speaker::play(const QString &event) { Q_UNUSED(event); }
+#endif // AURORA_WITH_MULTIMEDIA
