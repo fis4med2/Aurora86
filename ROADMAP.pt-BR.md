@@ -1,5 +1,12 @@
 # AURORA/86 — Ideias para as próximas versões
 
+> **Status (1.3.0):** este documento nasceu como cardápio de ideias. A versão 1.3
+> implementou os itens 2.2 (ASTER com pipes), 3.7 (`/proc`), 3.9 (A16ARC), 2.4
+> (barra de janelas), 2.5 (protetor de tela), 5.2/5.4 do bloco rápido (captura de
+> tela e referência de teclado) e, como base de tudo, o **item 2.1 (A16 BASIC)**.
+> Os itens ainda abertos seguem abaixo, sem alterações, para a próxima versão.
+
+
 Documento de trabalho: o que já existe, o que faz mais sentido implementar a seguir e por quê.
 Não é uma promessa de roadmap — é um cardápio priorizado.
 

@@ -1,4 +1,4 @@
-# AURORA/86 1.2.0
+# AURORA/86 1.3.0
 
 [English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Roadmap de ideias](ROADMAP.pt-BR.md)
 
@@ -6,15 +6,17 @@ Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem 
 
 ![Desktop AURORA/86](AURORA86-desktop.png)
 
-## Novidades da versão 1.2
+## Novidades da versão 1.3
 
-- **Interface em inglês:** menus, aplicativos, textos de ajuda e arquivos do sistema simulado agora usam inglês.
-- **auroraSYNC:** entre como Guest, ajuste nome, login, nota, mensagem, avatar e fundo, defina uma senha opcional e bloqueie a sessão com Ctrl+Alt+L.
-- **Pacotes:** repositório offline com 16 pacotes e 23 utilitários, com dependências e espaço simulado em disco. Instale pelo Package Center ou com `aurora`.
-- **Lua 5.4.8:** o Lua Studio instala e edita mods portáteis a partir de uma pasta do Linux. Os scripts rodam dentro do computador simulado.
-- **Builds para Windows:** o workflow gera um instalador e um ZIP portátil quando a validação terminar.
+- **A16 BASIC:** o terminal agora tem um interpretador de BASIC. Linhas numeradas, `FOR/NEXT`, `IF/THEN/ELSE`, `GOSUB/RETURN`, `DIM`, `DATA/READ`, strings, `SAVE`/`LOAD` e limites rígidos para um programa em laço infinito nunca travar a estação.
+- **ASTER muito mais shell:** pipes (`ls | grep txt`), sequências (`;`, `&&`), variáveis (`$HOME`, `$USER`, `$?`), `export`, `alias`, `history`, `which` e curingas (`*.txt`, `docs/*`).
+- **`/proc` vivo:** `cpuinfo`, `meminfo`, `uptime`, `version` e `loadavg` refletem a máquina simulada e combinam com os pipes.
+- **Impressora A16:** `lpr`, `lpq` e `lprm` com fila em papel contínuo de 80 colunas no disco virtual.
+- **A16ARC:** `pack`, `unpack` e `arc -l` com compressão, para levar arquivos entre discos.
+- **Interface:** barra de janelas no rodapé, protetor de tela com estrelas e logo quicando, captura de tela com **PrtSc** e referência de teclado com **F1**.
+- **Estados antigos continuam válidos:** o estado 1.2 é migrado automaticamente (a pasta `/proc` é criada na primeira abertura).
 
-![Controle do papel de parede](AURORA86-papel-de-parede.png)
+![Controle do papel de parede]![Controle do papel de parede](AURORA86-papel-de-parede.png)
 ![Sala de jogos](AURORA86-jogos.png)
 ![Quebra-cabeça Prism](AURORA86-prisma.png)
 
@@ -44,13 +46,52 @@ Para trocar o papel de parede, use **AURORA / 86 → Wallpaper...** ou clique co
 
 ## Aplicativos
 
-- **Terminal ASTER:** `help`, `ls -l`, `cd`, `pwd`, `cat`, `echo` com `>`/`>>`, `mkdir`, `touch`, `rm -r`, `mv`, `cp`, `chmod`, `stat`, `df`, `free`, `ps`, `kill`, `date`, `uname`, `whoami`, `clear`. Aspas, histórico e Tab para completar caminhos. Jogos abrem com `prism`, `garden`, `eco`, `snake`, `blocks` ou `games`. `exit` fecha o terminal; `shutdown` encerra o simulador.
+- **Terminal ASTER:** `help`, `ls -l`, `cd`, `pwd`, `cat`, `echo` com `>`/`>>`, `mkdir`, `touch`, `rm -r`, `mv`, `cp`, `chmod`, `stat`, `df`, `free`, `ps`, `kill`, `date`, `uname`, `whoami`, `clear`. Pipes com `|`, sequências com `;` e `&&`, variáveis com `$NOME`, `export`, `alias`, `history`, `which` e curingas `*`/`?`/`[abc]`. Aspas, histórico e Tab para completar caminhos. Jogos abrem com `prism`, `garden`, `eco`, `snake`, `blocks` ou `games`. `basic` inicia o interpretador, `screenshot` salva a tela, `exit` fecha o terminal e `shutdown` encerra o simulador.
 - **Disk 0:** criação, abertura, exclusão e movimentação de arquivos e pastas virtuais.
 - **Writer:** edição UTF-8, Ctrl+S e confirmação de alterações não gravadas ou substituição.
 - **Control Panel, calculadora, visualizador de imagens e monitor do sistema.**
 - **Package Center:** navegar, pesquisar, instalar e remover os pacotes offline.
 - **Lua Studio:** listar, executar, editar, instalar e remover programas Lua.
 - **Network Mail:** HTTP/HTTPS reais pelo Chromium, navegação e gravação de HTML no disco virtual. Acesso a arquivos locais, uploads, downloads para o Linux e permissões de dispositivos ficam desativados. A proteção do Chromium permanece ativa.
+
+## A16 BASIC
+
+Digite `basic` no terminal. O prompt vira `basic>` e o AURORA passa a ser um micro de 1986 de verdade:
+
+```text
+basic> 10 PRINT "AURORA/86"
+basic> 20 FOR I = 1 TO 4
+basic> 30 PRINT I; " SQUARED IS "; I * I
+basic> 40 NEXT I
+basic> RUN
+```
+
+Comandos: `RUN`, `LIST [faixa]`, `NEW`, `SAVE "NOME.BAS"`, `LOAD "NOME.BAS"`, `SYSTEM` (volta ao ASTER).
+Instruções: `PRINT` com `;` e `,`, `LET`, `INPUT`, `IF/THEN/ELSE`, `GOTO`, `GOSUB`/`RETURN`, `FOR`/`NEXT`/`STEP`, `DIM` (até duas dimensões), `DATA`/`READ`/`RESTORE`, `REM`, `END`, `STOP`, `CLS`, `BEEP`, `RANDOMIZE`.
+Funções: `ABS`, `SGN`, `INT`, `SQR`, `SIN`, `COS`, `TAN`, `ATN`, `EXP`, `LOG`, `RND`, `LEN`, `VAL`, `ASC`, `CHR$`, `STR$`, `LEFT$`, `RIGHT$`, `MID$`, `SPACE$`, `STRING$`, `HEX$`, `OCT$`.
+
+Um programa de exemplo fica em `/home/guest/docs/welcome.bas` (`basic docs/welcome.bas` e depois `RUN`). Os limites são reais: 64 KiB de saída, 250 mil instruções por execução, 2000 linhas e arrays de até 4096 elementos. Erros aparecem no formato clássico, com número de linha (`?SYNTAX ERROR IN 30`).
+
+## Impressora, arquivos e `/proc`
+
+```text
+lpr docs/journal.txt      enfileira um trabalho
+lpq                       lista a fila
+lprm all                  esvazia a fila
+
+pack backup.arc docs/*.txt
+arc -l backup.arc
+unpack backup.arc copia
+
+cat /proc/meminfo | grep MemFree
+cat /proc/cpuinfo
+```
+
+A fila de impressão vive em `/tmp/print`, com um cabeçalho de 80 colunas por trabalho. Os arquivos A16ARC usam compressão e recusam nomes com caminho, membros demais ou expansão acima de 512 KiB. `/proc` é gerado a partir do estado real da máquina simulada: memória, processos, uptime e versão.
+
+## Interface
+
+O rodapé agora mostra uma **barra de janelas**: clique em um título para restaurar e focar. O protetor de tela entra depois de 5 minutos parado (ajuste em **Control Panel → Display**, ou desligue) e volta com qualquer tecla; **PrtSc** salva um PNG em `/home/guest/images/` e abre no Atelier; **F1** mostra a referência de teclado.
 
 ## Pacotes
 

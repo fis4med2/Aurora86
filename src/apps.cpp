@@ -87,6 +87,8 @@ class Terminal final : public QWidget {
         connect(shell_, &Shell::launchRequested, this,
                 [launch](const QString &app, const QString &path) { launch(app, path); });
         connect(shell_, &Shell::shutdownRequested, this, [this] { window()->close(); });
+        connect(shell_, &Shell::soundRequested, this,
+                [this](const QString &event) { speaker_->play(event); });
         connect(system_, &SimSystem::settingsChanged, this, [this] { prompt_->setText(shell_->prompt()); });
     }
     bool eventFilter(QObject *o, QEvent *e) override {
@@ -536,7 +538,7 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     tabs->addTab(createWallpaperPanel(s), "Wallpaper");
     tabs->addTab(createIdentityPanel(s), "auroraSYNC");
     tabs->addTab(createDisplayPanel(s), "Display");
-    auto *title = new QLabel("CONTROL PANEL / AURORA 1.2");
+    auto *title = new QLabel("CONTROL PANEL / AURORA 1.3");
     l->addWidget(title);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -601,7 +603,7 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
     Q_UNUSED(s);
     auto *w = new QWidget(parent);
     auto *l = column(w);
-    auto *heading = new QLabel("GAMES ROOM / AURORA 1.2");
+    auto *heading = new QLabel("GAMES ROOM / AURORA 1.3");
     l->addWidget(heading);
     auto *intro = new QLabel("Five experiences. Pick one to begin.");
     intro->setWordWrap(true);
@@ -799,7 +801,7 @@ QWidget *createAbout(QWidget *parent) {
     auto *l = column(w);
     auto *text = new QLabel("A U R O R A  /  8 6\n\nPERSONAL RESEARCH WORKSTATION\n"
                             "A16 series • 8 MHz • 4096 KiB\n2048 KiB magnetic disk\n\n"
-                            "AURORA system 1.2 / October 1986\nA small station. An entire world.\n\n"
+                            "AURORA system 1.3 / October 1986\nA small station. An entire world.\n\n"
                             "Hardware and processes are simulated.\nApplications built with C++ / Qt.\n"
                             "Browsing uses Chromium and the real internet.\n\n"
                             "F11  fullscreen      Ctrl+S  save\nTab  complete        ↑ / ↓   history");

@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
     app.setApplicationName("AURORA86");
     app.setDesktopFileName("io.github.fis4med2.Aurora86");
     app.setOrganizationName("Aurora");
-    app.setApplicationVersion("1.2.0");
+    app.setApplicationVersion("1.3.0");
     app.setStyle("Fusion");
     QImageReader::setAllocationLimit(16);
     QFontDatabase::addApplicationFont(":/fonts/AuroraFixed.ttf");

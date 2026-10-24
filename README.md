@@ -1,4 +1,4 @@
-# AURORA/86 1.2.0
+# AURORA/86 1.3.0
 
 [Português](README.pt-BR.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Ideas roadmap (PT-BR)](ROADMAP.pt-BR.md)
 
@@ -6,15 +6,17 @@ A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its 
 
 ![AURORA/86 desktop](AURORA86-desktop.png)
 
-## What's new in 1.2
+## What's new in 1.3
 
-- **English interface:** menus, applications, help text and simulated system files now use English.
-- **auroraSYNC:** sign in as Guest, customize name, login, note, message, avatar and background, set an optional password, and lock the session with Ctrl+Alt+L.
-- **Packages:** an offline repository with 16 packages and 23 utilities, with dependencies and simulated disk use. Install from the Package Center or with `aurora`.
-- **Lua 5.4.8:** Lua Studio installs and edits portable mods from a host folder. Scripts run inside the simulated computer.
-- **Windows builds:** the workflow produces an installer and a portable ZIP once validation finishes.
+- **A16 BASIC:** the terminal is now a BASIC interpreter. Numbered lines, `FOR/NEXT`, `IF/THEN/ELSE`, `GOSUB/RETURN`, `DIM`, `DATA/READ`, strings, `SAVE`/`LOAD`, and hard limits so a runaway loop can never freeze the station.
+- **A real ASTER shell:** pipes (`ls | grep txt`), sequences (`;`, `&&`), variables (`$HOME`, `$USER`, `$?`), `export`, `alias`, `history`, `which` and wildcards (`*.txt`, `docs/*`).
+- **Live `/proc`:** `cpuinfo`, `meminfo`, `uptime`, `version` and `loadavg` mirror the simulated machine and compose with pipes.
+- **A16 printer:** `lpr`, `lpq` and `lprm`, with an 80-column continuous-paper queue on the virtual disk.
+- **A16ARC:** `pack`, `unpack` and `arc -l`, compressed, for moving files between disks.
+- **Interface:** a window taskbar in the footer, a starfield screen saver, **PrtSc** screen capture and **F1** keyboard reference.
+- **Old states keep working:** 1.2 state is migrated automatically (`/proc` is created on first open).
 
-![Wallpaper controls](AURORA86-papel-de-parede.png)
+![Wallpaper controls]![Wallpaper controls](AURORA86-papel-de-parede.png)
 ![Games Room](AURORA86-jogos.png)
 ![Prism laser puzzle](AURORA86-prisma.png)
 
@@ -51,6 +53,45 @@ For wallpaper, use **AURORA / 86 → Wallpaper...** or right-click the desktop. 
 - **Package Center:** browse, search, install and remove the offline packages.
 - **Lua Studio:** list, run, edit, install and remove Lua programs.
 - **Network Mail:** real HTTP/HTTPS browsing through Chromium, navigation controls and HTML saving to the virtual disk. Browser file access, uploads, host downloads and device permissions are disabled. Chromium sandboxing stays enabled.
+
+## A16 BASIC
+
+Type `basic` in the terminal. The prompt becomes `basic>` and AURORA behaves like a 1986 micro:
+
+```text
+basic> 10 PRINT "AURORA/86"
+basic> 20 FOR I = 1 TO 4
+basic> 30 PRINT I; " SQUARED IS "; I * I
+basic> 40 NEXT I
+basic> RUN
+```
+
+Commands: `RUN`, `LIST [range]`, `NEW`, `SAVE "NAME.BAS"`, `LOAD "NAME.BAS"`, `SYSTEM` (back to ASTER).
+Statements: `PRINT` with `;` and `,`, `LET`, `INPUT`, `IF/THEN/ELSE`, `GOTO`, `GOSUB`/`RETURN`, `FOR`/`NEXT`/`STEP`, `DIM` (up to two dimensions), `DATA`/`READ`/`RESTORE`, `REM`, `END`, `STOP`, `CLS`, `BEEP`, `RANDOMIZE`.
+Functions: `ABS`, `SGN`, `INT`, `SQR`, `SIN`, `COS`, `TAN`, `ATN`, `EXP`, `LOG`, `RND`, `LEN`, `VAL`, `ASC`, `CHR$`, `STR$`, `LEFT$`, `RIGHT$`, `MID$`, `SPACE$`, `STRING$`, `HEX$`, `OCT$`.
+
+A sample program ships at `/home/guest/docs/welcome.bas` (`basic docs/welcome.bas`, then `RUN`). The limits are real: 64 KiB of output, 250,000 instructions per run, 2,000 lines and arrays up to 4,096 elements. Errors use the classic format with the line number (`?SYNTAX ERROR IN 30`).
+
+## Printer, archives and `/proc`
+
+```text
+lpr docs/journal.txt      queue a job
+lpq                       list the queue
+lprm all                  empty the queue
+
+pack backup.arc docs/*.txt
+arc -l backup.arc
+unpack backup.arc copy
+
+cat /proc/meminfo | grep MemFree
+cat /proc/cpuinfo
+```
+
+The print queue lives in `/tmp/print`, with an 80-column header per job. A16ARC files are compressed and reject path names, too many members or expansion above 512 KiB. `/proc` is generated from the real state of the simulated machine: memory, processes, uptime and version.
+
+## Interface
+
+The footer now carries a **window taskbar**: click a title to restore and focus. The screen saver starts after five idle minutes (Control Panel → Display, or turn it off) and any key returns; **PrtSc** saves a PNG to `/home/guest/images/` and opens it in Atelier; **F1** shows the keyboard reference.
 
 ## Packages
 

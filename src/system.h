@@ -70,4 +70,6 @@ class SimSystem : public QObject {
     bool writableParent(const QString &path) const;
     bool protectedPath(const QString &path) const;
     bool commit(const QMap<QString, VEntry> &previous);
+    bool virtualPath(const QString &path) const;
+    QByteArray virtualFile(const QString &path) const;
 };

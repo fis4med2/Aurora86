@@ -26,12 +26,74 @@ SimSystem::SimSystem(const QString &stateDirectory, QObject *parent)
     seed();
 }
 
+bool SimSystem::virtualPath(const QString &path) const {
+    static const QStringList names = {"cpuinfo", "loadavg", "meminfo", "uptime", "version"};
+    if (!path.startsWith("/proc/"))
+        return false;
+    const QString rest = path.mid(6);
+    if (names.contains(rest))
+        return true;
+    const QStringList parts = rest.split('/');
+    if (parts.size() == 2 && parts[1] == "cmdline") {
+        bool ok = false;
+        const int pid = parts[0].toInt(&ok);
+        if (ok)
+            for (const auto &process : m_processes)
+                if (process.pid == pid)
+                    return true;
+    }
+    return false;
+}
+
+QByteArray SimSystem::virtualFile(const QString &path) const {
+    const int used = usedMemoryKiB();
+    if (path == "/proc/meminfo")
+        return QString("MemTotal:        %1 kB\nMemFree:         %2 kB\nMemUsed:         %3 kB\n"
+                       "SwapTotal:           0 kB\nSwapFree:            0 kB\n"
+                       "Processes:          %4\n")
+            .arg(MemoryKiB)
+            .arg(MemoryKiB - used)
+            .arg(used)
+            .arg(m_processes.size())
+            .toUtf8();
+    if (path == "/proc/cpuinfo")
+        return QByteArray("processor       : 0\n"
+                          "model name      : Aurora A16\n"
+                          "vendor          : Aurora Laboratories\n"
+                          "cpu MHz         : 8.000\n"
+                          "bus width       : 16 bit\n"
+                          "bogomips        : 1.60\n"
+                          "flags           : simulated terminal\n");
+    if (path == "/proc/uptime") {
+        const double seconds = double(uptimeSeconds());
+        return QString("%1 %1\n").arg(QString::number(seconds, 'f', 2)).toUtf8();
+    }
+    if (path == "/proc/version")
+        return QByteArray("AURORA/86 1.3 (aster@aurora) #1 A16\n");
+    if (path == "/proc/loadavg") {
+        const double load = double(m_processes.size()) / qMax(1, MemoryKiB / 1024);
+        return QString("%1 0.00 0.00 1/%2 %3\n")
+            .arg(QString::number(load, 'f', 2))
+            .arg(m_processes.size())
+            .arg(m_processes.isEmpty() ? 1 : m_processes.first().pid)
+            .toUtf8();
+    }
+    const QStringList parts = path.mid(6).split('/');
+    if (parts.size() == 2 && parts[1] == "cmdline") {
+        const int pid = parts[0].toInt();
+        for (const auto &process : m_processes)
+            if (process.pid == pid)
+                return process.name.toUtf8() + QByteArray(1, '\0');
+    }
+    return {};
+}
+
 void SimSystem::seed() {
     m_entries.clear();
     const auto dir = [this](const QString &path, int permissions) {
         m_entries.insert(path, {path, true, {}, permissions});
     };
-    for (const auto &path : {"/", "/bin", "/etc", "/sys", "/home"})
+    for (const auto &path : {"/", "/bin", "/etc", "/sys", "/proc", "/home"})
         dir(path, 0555);
     for (const auto &path : {"/home/guest", "/home/guest/docs", "/home/guest/images", "/tmp"})
         dir(path, 0755);
@@ -39,9 +101,10 @@ void SimSystem::seed() {
         m_entries.insert(path, {path, false, data, permissions});
     };
     file("/home/guest/README.txt",
-         "WELCOME TO AURORA/86 1.2\n"
+         "WELCOME TO AURORA/86 1.3\n"
          "A fictional A16 workstation from Aurora Laboratories.\n\n"
          "Type help in Terminal. Your home directory is /home/guest.\n"
+         "Try basic to write a program in A16 BASIC, or basic docs/welcome.bas.\n"
          "Use edit notes.txt and Ctrl+S to write a document.\n"
          "F11 toggles fullscreen; windows can be moved and resized.\n"
          "All applications share a 2 MiB virtual disk and 4096 KiB simulated RAM.\n\n"
@@ -53,12 +116,22 @@ void SimSystem::seed() {
          "Your files, settings, wallpaper and puzzle progress are saved automatically.\n");
     file("/home/guest/docs/journal.txt",
          "23 OCT 1986\n\nToday the A16 arrived. Our workshop has a window into the future.\n");
+    file("/home/guest/docs/welcome.bas",
+         "10 REM WELCOME TO A16 BASIC\n"
+         "20 PRINT \"AURORA/86 - A16 BASIC\"\n"
+         "30 PRINT \"--------------------\"\n"
+         "40 FOR I = 1 TO 4\n"
+         "50 PRINT I; \" SQUARED IS \"; I * I\n"
+         "60 BEEP\n"
+         "70 NEXT I\n"
+         "80 PRINT \"EDIT THIS FILE, THEN RUN AGAIN.\"\n"
+         "90 END\n");
     file("/home/guest/docs/commands.txt",
          "EXAMPLE COMMANDS (one per line)\n\nhelp\nls -l\ncd docs\ncat journal.txt\necho \"Hello, Aurora\" > "
          "notes.txt\nmkdir projects\nmv notes.txt projects/\nchmod 444 "
          "projects/notes.txt\nfree\ndf\nps\naurora -i fastfetch htop tree grep "
          "coreutils\nfastfetch\nhtop\ntree\n");
-    file("/etc/release", "AURORA/86 1.2\nAurora Laboratories / October 1986\n", 0444);
+    file("/etc/release", "AURORA/86 1.3\nAurora Laboratories / October 1986\n", 0444);
     file("/sys/hardware",
          "CPU: A16 / 16-bit bus / 8 MHz\nRAM: 4096 KiB\nDISK: M2 magnetic drive / 2048 KiB\nVIDEO: LUME "
          "adapter / 960 x 640 / 4 tones\nSOUND: mono waveform generator\n",
@@ -155,6 +228,8 @@ bool SimSystem::writableParent(const QString &path) const {
 bool SimSystem::exists(const QString &input) const {
     m_error.clear();
     const QString path = normalize(input);
+    if (virtualPath(path))
+        return true;
     return accessible(path) && m_entries.contains(path);
 }
 
@@ -181,6 +256,15 @@ QList<VEntry> SimSystem::list(const QString &input) const {
     for (const auto &entry : m_entries)
         if (entry.path != path && parentPath(entry.path) == path)
             result.append(entry);
+    if (path == "/proc") {
+        for (const QString &name : {"cpuinfo", "loadavg", "meminfo", "uptime", "version"}) {
+            VEntry entry;
+            entry.path = "/proc/" + name;
+            entry.permissions = 0444;
+            entry.data = virtualFile(entry.path);
+            result.append(entry);
+        }
+    }
     std::sort(result.begin(), result.end(), [](const VEntry &a, const VEntry &b) {
         if (a.directory != b.directory)
             return a.directory;
@@ -192,6 +276,8 @@ QList<VEntry> SimSystem::list(const QString &input) const {
 QByteArray SimSystem::read(const QString &input) const {
     m_error.clear();
     const QString path = normalize(input);
+    if (virtualPath(path))
+        return virtualFile(path);
     if (!accessible(path))
         return {};
     const auto it = m_entries.constFind(path);
@@ -442,6 +528,9 @@ bool SimSystem::load() {
             loaded[path] = fresh;
         }
     }
+    // /proc appeared in 1.3: older states simply receive the directory.
+    if (!loaded.contains("/proc"))
+        loaded.insert("/proc", {"/proc", true, {}, 0555});
     m_entries = loaded;
     m_settings = root.value("settings").toObject().toVariantMap();
     m_blocked = false;
