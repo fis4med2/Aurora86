@@ -411,7 +411,7 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
         QStringList info = {
             (username.isEmpty() ? QString("guest") : username) + "@aurora",
             "---------------------------",
-            "OS: AURORA/86 1.3 / ASTER shell",
+            "OS: AURORA/86 1.4 / ASTER shell",
             "Host: A16 personal workstation",
             "CPU: A16 / 8 MHz / 16-bit",
             QString("Display: LUME / %1 x %2 / 4 tones")

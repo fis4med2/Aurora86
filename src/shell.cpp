@@ -195,7 +195,7 @@ QStringList builtinCommands()
             "rm",       "mv",     "cp",      "chmod",  "stat",     "df",     "free",   "ps",
             "kill",     "date",   "uname",   "whoami", "clear",    "exit",   "shutdown", "lock",
             "edit",     "files",  "calc",    "browser", "games",   "packages", "prism", "garden",
-            "eco",      "snake",  "blocks",  "about",  "aurora",   "lua",    "mods",   "basic",
+            "eco",      "snake",  "blocks",  "hellgate", "about",  "aurora",   "lua",    "mods",   "basic",
             "history",  "alias",  "unalias", "export", "unset",    "env",    "which",  "type",
             "true",     "false",  "lpr",     "lpq",    "lprm",     "pack",   "unpack", "arc",
             "screenshot"};
@@ -485,7 +485,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
     if (command != "echo" && (redirect >= 0 || append >= 0))
         return "error: redirection is available only with echo.";
     if (command == "help")
-        return "ASTER shell / AURORA 1.3\n"
+        return "ASTER shell / AURORA 1.4\n"
                "ls [-l] [directory]   cd [directory]   pwd\n"
                "cat file              echo text [> or >> file]\n"
                "mkdir directory       touch file        rm [-r] path\n"
@@ -498,6 +498,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
                "browser [URL]         games             packages\n"
                "prism                 garden            eco\n"
                "snake                 blocks            about\n"
+               "hellgate              corridor 13: 3D maze with drones\n"
                "aurora -i PACKAGE...   install optional packages\n"
                "aurora --list         browse repository\n"
                "lua FILE.lua          run a Lua program\n"
@@ -979,7 +980,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
         return "Session locked.";
     }
     if (command == "uname")
-        return "AURORA/86 1.3  A16  8MHz  4096KiB  October1986";
+        return "AURORA/86 1.4  A16  8MHz  4096KiB  October1986";
     if (command == "date") {
         const auto now = QDateTime::currentDateTime();
         auto vintage = now;
@@ -988,11 +989,12 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
         return now.addSecs(m_system->setting("clockOffsetSeconds", now.secsTo(vintage)).toLongLong())
             .toString("dd/MM/yyyy HH:mm:ss");
     }
-    if (QStringList{"prisma", "jardim", "prism", "garden", "eco", "games", "packages"}.contains(command)) {
+    if (QStringList{"prisma", "jardim", "prism", "garden", "eco", "games", "packages", "hellgate"}.contains(command)) {
         emit launchRequested((command == "prisma" || command == "prism")    ? "prism"
                              : (command == "jardim" || command == "garden") ? "garden"
                              : command == "eco"                             ? "echo"
                              : command == "packages"                        ? "packages"
+                             : command == "hellgate"                        ? "hellgate"
                                                                             : "games",
                              {});
         return {};
@@ -1139,7 +1141,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
             return usage("kill PID");
         return m_system->stopProcess(pid) ? QString() : failure();
     }
-    if (QStringList{"edit", "files", "calc", "browser", "snake", "blocks", "about"}.contains(command)) {
+    if (QStringList{"edit", "files", "calc", "browser", "snake", "blocks", "hellgate", "about"}.contains(command)) {
         if (args.size() > 1)
             return usage(command + " [path]");
         QString target = args.isEmpty() ? QString() : args.first();

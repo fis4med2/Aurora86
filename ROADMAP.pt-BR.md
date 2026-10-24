@@ -1,9 +1,15 @@
 # AURORA/86 — Ideias para as próximas versões
 
-> **Status (1.3.0):** este documento nasceu como cardápio de ideias. A versão 1.3
+> **Status (1.4.0):** este documento nasceu como cardápio de ideias. A versão 1.3
 > implementou os itens 2.2 (ASTER com pipes), 3.7 (`/proc`), 3.9 (A16ARC), 2.4
 > (barra de janelas), 2.5 (protetor de tela), 5.2/5.4 do bloco rápido (captura de
 > tela e referência de teclado) e, como base de tudo, o **item 2.1 (A16 BASIC)**.
+> A versão 1.4 ("Arcade") acrescentou o primeiro jogo em primeira pessoa,
+> **HELLGATE / corredor 13**, um raycaster com texturas geradas em código — a
+> resposta possível, num A16 de 8 MHz, à ideia de "rodar Doom": em vez de portar
+> um motor de 1993, a estação desenha o próprio 3D. Ler arquivos `.WAD` de verdade
+> continua fora de alcance (o disco virtual tem 2048 KiB e o shareware do Doom
+> ocupa 4 MiB).
 > Os itens ainda abertos seguem abaixo, sem alterações, para a próxima versão.
 
 
@@ -24,7 +30,7 @@ Não é uma promessa de roadmap — é um cardápio priorizado.
 | Base | C++20 + Qt 6.8/WebEngine, estado em `vfs.json`, 4096 KiB RAM simulada, disco de 2048 KiB |
 | Shell | ASTER com ~30 comandos, aspas, histórico, Tab; **sem pipes, sem glob, sem variáveis** |
 | Apps | 20 janelas (`applications[]` em `src/desktop.cpp`): Terminal, Disk 0, Writer, Calc, Atelier, Control Panel, Monitor, Network Mail, Package Center, htop, Lua Studio, about |
-| Jogos | 5 (Prism, Orbital Garden, Echo, Circuit, Orbital Watch) + Games Room |
+| Jogos | 6 (Prism, Orbital Garden, Echo, Circuit, Orbital Watch, HELLGATE) + Games Room |
 | Pacotes | 16 pacotes offline / 23 utilitários simulados, com dependências e `man` |
 | Extensibilidade | Lua 5.4 com `aurora.*` (janela, botões, read/write/list/mkdir, theme/setting), sandbox de 1 MiB |
 | Sistema | Login auroraSYNC, perfis, bloqueio de sessão, temas, papel de parede, presets de vídeo, scanlines, áudio de speaker |

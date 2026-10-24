@@ -4,6 +4,7 @@
 #include "creative_games.h"
 #include "display.h"
 #include "games.h"
+#include "hellgate.h"
 #include "login.h"
 #include "lua_apps.h"
 #include "package_apps.h"
@@ -131,6 +132,7 @@ const Application applications[] = {{"terminal", "Terminal / tty", 192, {760, 46
                                     {"prism", "Prism / optics lab", 128, {720, 560}},
                                     {"garden", "Orbital Garden", 128, {720, 570}},
                                     {"echo", "Echo / signal memory", 96, {720, 560}},
+                                    {"hellgate", "HELLGATE / corridor 13", 512, {860, 640}},
                                     {"games", "Games Room", 64, {760, 580}},
                                     {"packages", "Package Center", 128, {840, 580}},
                                     {"htop", "htop / A16 process viewer", 96, {840, 540}},
@@ -329,7 +331,7 @@ void Desktop::beginBoot() {
                          "[ VFS ] mounting persistent virtual disk ...",
                          "[ MOD ] scheduler, permissions, clock, speaker",
                          "[ NET ] protected network bridge / available on demand",
-                         "[ SYS ] AURORA 1.2 / kernel ready",
+                         "[ SYS ] AURORA 1.4 / kernel ready",
                          "[ USR ] guest session / /home/guest",
                          "[ GUI ] starting desktop environment ..."};
     bootTimer_ = new QTimer(this);
@@ -410,6 +412,8 @@ void Desktop::startDesktop() {
     action(games, "Echo", "echo");
     action(games, "Circuit", "snake");
     action(games, "Orbital Watch", "blocks");
+    games->addSeparator();
+    action(games, "HELLGATE / corridor 13", "hellgate");
     auto *windows = bar->addMenu("Windows");
     auto *cascade = windows->addAction("Cascade");
     connect(cascade, &QAction::triggered, area_, &QMdiArea::cascadeSubWindows);
@@ -574,6 +578,8 @@ void Desktop::launch(const QString &requested, const QString &path) {
         content = createGardenGame(system_);
     else if (id == "echo")
         content = createEchoGame(system_);
+    else if (id == "hellgate")
+        content = createHellgateGame(system_);
     else if (id == "games")
         content = createGameLibrary(system_, open);
     else if (id == "handbook")
@@ -700,6 +706,9 @@ void Desktop::showKeyboardReference()
         "<code>unpack APP.ARC DIR</code><br>"
         "Live system files: <code>cat /proc/meminfo</code>, <code>/proc/cpuinfo</code>, "
         "<code>/proc/uptime</code><br><br>"
+        "<b>HELLGATE</b><br>"
+        "<code>W A S D</code> move, <code>Shift</code> run, arrows turn, <code>Space</code> fires, "
+        "<code>E</code> opens a gate, <code>P</code> pauses, <code>R</code> restarts.<br><br>"
         "<b>A16 BASIC</b><br>"
         "Type <code>basic</code> in the terminal. Store lines with numbers, then <code>RUN</code>, "
         "<code>LIST</code>, <code>SAVE NAME.BAS</code> and <code>SYSTEM</code> to return.");

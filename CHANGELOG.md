@@ -4,6 +4,38 @@ Todas as mudanças relevantes do AURORA/86. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa
 versionamento semântico no formato `MAJOR.MINOR.PATCH`.
 
+## [1.4.0] — 2026-10-24
+
+Versão "Arcade": o A16 ganha sua primeira visão em primeira pessoa, desenhada
+pelo próprio processador simulado. A versão 1.3 permanece intacta.
+
+### Adicionado
+
+- **HELLGATE / corridor 13** (`src/hellgate.cpp`): raycaster completo em 3D.
+  - Paredes texturizadas coluna a coluna (tijolo, maquinário e portões), piso e
+    teto com gradiente de distância, sem nenhuma textura em disco: as imagens são
+    geradas em memória a partir de código.
+  - Mapa de 24 × 24 com nove salas, corredores, nove portões que abrem com `E`
+    (fecham sozinhos depois de seis segundos) e um portal de saída.
+  - Cinco drones com sprite billboard, perseguição quando há linha de visão,
+    ataque de perto, dano, vida e recarga próprios.
+  - Vida, munição, pacotes de vida e caixas de munição no mapa; HUD com vida,
+    munição, drones restantes, cronômetro e melhor tempo salvo nas configurações.
+  - `W A S D` mover, `Shift` correr, setas virar, `Espaço` atirar, `E` portão,
+    `P` pausar, `R` reiniciar.
+  - Abre por **Games → HELLGATE**, pelo Games Room ou com `hellgate` no terminal.
+- **Manual da estação**: nova aba HELLGATE, com teclas e objetivo, e a referência
+  de teclado (**Shift+F1**) agora lista os controles do jogo.
+- **Testes**: `tests/hellgate_test.cpp`, sete casos que verificam o mapa (24 × 24,
+  um início, um portão de saída, nenhuma célula isolada), a renderização do quadro,
+  a colisão com paredes, o gasto de munição e o ciclo de abrir portão.
+
+### Alterado
+
+- Versão 1.4.0 em `CMakeLists.txt`, no rodapé, em `/etc/release`, em
+  `/proc/version`, no metainfo e no instalador Windows.
+- O jogo aparece no Games Room, no menu **Games** e na lista de comandos do `help`.
+
 ## [1.3.0] — 2026-10-24
 
 Versão "Programmable": o AURORA deixa de ser só um ambiente com aplicativos e

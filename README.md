@@ -1,10 +1,18 @@
-# AURORA/86 1.3.0
+# AURORA/86 1.4.0
 
 [Português](README.pt-BR.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Ideas roadmap (PT-BR)](ROADMAP.pt-BR.md)
 
 A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its own boot sequence, desktop, Unix-inspired shell, shared virtual disk, package manager, Lua runtime and native applications. The interface is in English.
 
 ![AURORA/86 desktop](AURORA86-desktop.png)
+
+## What's new in 1.4
+
+- **HELLGATE / corridor 13:** the station's first first-person game. A textured raycaster drawn by the simulated A16 itself — walls, floor and ceiling column by column, nine rooms, gates that open with `E`, five drones with billboard sprites, health and ammo pickups, and a timer that keeps your best crossing.
+- **No new dependencies:** every wall, drone and gate texture is generated in code at start-up, so the 1986 illusion holds and the virtual disk stays at 2048 KiB.
+- **Documentation and tests:** a HELLGATE page in the station handbook, a new keyboard reference, and seven regression cases covering the map, the renderer, collisions, ammo and gates.
+
+![HELLGATE corridor 13](AURORA86-hellgate.png)
 
 ## What's new in 1.3
 
@@ -53,7 +61,7 @@ For wallpaper, use **AURORA / 86 → Wallpaper...** or right-click the desktop. 
 - **Disk 0:** create, open, delete and move/rename virtual files and directories.
 - **Writer:** UTF-8 editor with Ctrl+S and unsaved-change/overwrite prompts.
 - **Control Panel, calculator, image viewer and system monitor.**
-- **Station handbook:** F1 opens the built-in manual with keyboard, terminal, BASIC and Lua guides.
+- **Station handbook:** F1 opens the built-in manual with keyboard, terminal, HELLGATE, BASIC and Lua guides.
 - **Package Center:** browse, search, install and remove the offline packages.
 - **Lua Studio:** list, run, edit, install and remove Lua programs.
 - **Network Mail:** real HTTP/HTTPS browsing through Chromium, navigation controls and HTML saving to the virtual disk. Browser file access, uploads, host downloads and device permissions are disabled. Chromium sandboxing stays enabled.
@@ -154,6 +162,7 @@ Lua API: `aurora.read/write/list/mkdir` and `aurora.theme/setting`. Limits: **1 
 | Echo | Watch and listen, then repeat the pad sequence using mouse or keyboard. Persistent best score. |
 | Circuit | Route a growing signal using arrows/WASD without crossing its trail. Space pauses; Enter restarts. |
 | Orbital Watch | Move with arrows/WASD and shoot with Space. P pauses; Enter restarts. Three shields and persistent best score. |
+| HELLGATE | First-person corridor 13: `WASD` move, `Shift` runs, arrows turn, `Space` fires, `E` opens gates, `P` pauses, `R` restarts. Reach the EXIT portal with the drones retired; best time persists. |
 
 ## Persistence and boundaries
 
