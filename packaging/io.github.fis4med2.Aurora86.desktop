@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=AURORA/86
+GenericName=1986 personal computer simulator
+GenericName[pt_BR]=Simulador de computador pessoal de 1986
+Comment=Explore a fictional retro desktop, terminal, apps, and games
+Comment[pt_BR]=Explore um desktop retrô fictício, terminal, aplicativos e jogos
+Exec=aurora86
+Icon=io.github.fis4med2.Aurora86
+Terminal=false
+Categories=Game;Simulation;
+Keywords=retro;computer;1986;simulation;terminal;
+Keywords[pt_BR]=retrô;computador;1986;simulação;terminal;
+StartupWMClass=aurora86

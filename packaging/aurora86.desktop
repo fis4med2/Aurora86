@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AURORA/86
+GenericName=Computador pessoal virtual de 1986
+Comment=Sistema fictício com terminal, aplicativos e jogos
+Exec=aurora86
+Icon=aurora86
+Terminal=false
+Categories=Game;Simulation;
+StartupWMClass=aurora86
+

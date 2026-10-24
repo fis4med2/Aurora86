@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 fis4med2 -->
+<component type="desktop-application">
+  <id>io.github.fis4med2.Aurora86</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>AURORA/86</name>
+  <summary>Explore a fictional personal computer from 1986</summary>
+  <summary xml:lang="pt_BR">Explore um computador pessoal fictício de 1986</summary>
+  <developer id="io.github.fis4med2">
+    <name>fis4med2</name>
+  </developer>
+  <description>
+    <p>AURORA/86 is an interactive desktop simulation of an imaginary personal computer released in 1986. Boot the A16 workstation, explore its virtual disk, and use a complete set of native applications inside a retro graphical environment.</p>
+    <p xml:lang="pt_BR">AURORA/86 simula o desktop interativo de um computador pessoal imaginário lançado em 1986. Inicialize a estação A16, explore seu disco virtual e use aplicativos nativos em um ambiente gráfico retrô.</p>
+    <ul>
+      <li>Use a Unix-inspired terminal, file manager, text editor, calculator, image viewer, and process monitor</li>
+      <li xml:lang="pt_BR">Use terminal inspirado no Unix, gerenciador de arquivos, editor de texto, calculadora, visualizador de imagens e monitor de processos</li>
+      <li>Play five original games with persistent records and puzzle progress</li>
+      <li xml:lang="pt_BR">Jogue cinco jogos originais com recordes e progresso dos desafios persistentes</li>
+      <li>Import your own wallpaper, choose a color theme, and adjust readable font sizes</li>
+      <li xml:lang="pt_BR">Importe seu papel de parede, escolha um tema de cores e ajuste fontes legíveis</li>
+      <li>Browse real websites through an integrated modern web engine with a retro interface</li>
+      <li xml:lang="pt_BR">Acesse sites reais com um mecanismo web moderno integrado à interface retrô</li>
+      <li>Switch between full screen and windowed mode while preserving virtual files and settings</li>
+      <li xml:lang="pt_BR">Alterne entre tela cheia e janela, preservando arquivos virtuais e preferências</li>
+    </ul>
+    <p>The application interface is in Brazilian Portuguese. The computer, memory, disk, and processes are simulated; this is not a CPU instruction emulator. The browser uses the real internet and consumes host memory.</p>
+    <p xml:lang="pt_BR">A interface do aplicativo está em português brasileiro. Computador, memória, disco e processos são simulados; não há emulação de instruções de CPU. O navegador usa a internet real e consome memória do computador hospedeiro.</p>
+  </description>
+  <url type="homepage">https://github.com/fis4med2/Aurora86</url>
+  <url type="vcs-browser">https://github.com/fis4med2/Aurora86</url>
+  <launchable type="desktop-id">io.github.fis4med2.Aurora86.desktop</launchable>
+  <icon type="stock">io.github.fis4med2.Aurora86</icon>
+  <categories>
+    <category>Game</category>
+    <category>Simulation</category>
+  </categories>
+  <keywords>
+    <keyword>retro</keyword>
+    <keyword>computer</keyword>
+    <keyword>1986</keyword>
+    <keyword>simulation</keyword>
+    <keyword xml:lang="pt_BR">computador</keyword>
+    <keyword xml:lang="pt_BR">simulação</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#547361</color>
+    <color type="primary" scheme_preference="dark">#172b2a</color>
+  </branding>
+  <content_rating type="oars-1.1"/>
+  <languages>
+    <lang percentage="100">pt_BR</lang>
+  </languages>
+  <requires>
+    <display_length compare="ge" side="shortest">640</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/fis4med2/Aurora86/main/AURORA86-desktop.png</image>
+      <caption>The A16 desktop and its interactive terminal</caption>
+      <caption xml:lang="pt_BR">Desktop A16 e seu terminal interativo</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/fis4med2/Aurora86/main/AURORA86-papel-de-parede.png</image>
+      <caption>Custom wallpapers and appearance preferences</caption>
+      <caption xml:lang="pt_BR">Papel de parede personalizado e preferências de aparência</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/fis4med2/Aurora86/main/AURORA86-jogos.png</image>
+      <caption>Original games in the retro desktop</caption>
+      <caption xml:lang="pt_BR">Jogos originais no desktop retrô</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.1.0" date="2026-10-23">
+      <description>
+        <p>Add custom wallpapers, larger readable fonts, and three new games: Prisma, Jardim Orbital, and Eco.</p>
+        <p xml:lang="pt_BR">Adiciona papel de parede personalizado, fontes maiores e legíveis e três jogos novos: Prisma, Jardim Orbital e Eco.</p>
+      </description>
+    </release>
+  </releases>
+</component>

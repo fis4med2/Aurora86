@@ -1,0 +1,10 @@
+/work/
+/outputs/
+/.codex/
+/.agents/
+/.aws/
+*.AppImage
+*.AppImage.sha256
+AURORA86-source.tar.gz
+CMakeUserPresets.json
+/build/

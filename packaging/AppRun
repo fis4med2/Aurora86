@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export APPDIR
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$APPDIR/usr/plugins"
+export QT_QPA_FONTDIR="$APPDIR/usr/share/aurora86/fonts"
+export QTWEBENGINEPROCESS_PATH="$APPDIR/usr/libexec/QtWebEngineProcess"
+export QTWEBENGINE_RESOURCES_PATH="$APPDIR/usr/share/qt6/resources"
+export QTWEBENGINE_LOCALES_PATH="$APPDIR/usr/share/qt6/translations/qtwebengine_locales"
+export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+# Native desktop themes may load incompatible plugins from the host.
+unset QT_QPA_PLATFORMTHEME
+exec "$APPDIR/usr/bin/aurora86" "$@"
