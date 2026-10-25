@@ -8,3 +8,34 @@
 AURORA86-source.tar.gz
 CMakeUserPresets.json
 /build/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.netrc
+credentials.json
+service-account*.json
+
+# Game data: only the explicitly licensed Freedoom asset belongs in source
+*.[wW][aA][dD]
+!third_party/doom/freedoom1.wad
+*.dsg
+.doomrc
+
+# Extracted packages, crash dumps and editor files
+/squashfs-root/
+/core
+/core.*
+*.dmp
+*.user
+*.swp
+/.vscode/
+/.idea/
+
+vfs.json
+*.log

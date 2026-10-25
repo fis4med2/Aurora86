@@ -20,6 +20,9 @@ $bundle = Join-Path $packageOutput 'AURORA86-Windows-x86_64'
 if (Test-Path $bundle) { Remove-Item -Recurse -Force $bundle }
 New-Item -ItemType Directory $bundle | Out-Null
 $deployedExe = Join-Path $bundle 'aurora86.exe'
+$doomHelper = Join-Path (Split-Path $binary) 'aurora86-doom.exe'
+if (-not (Test-Path $doomHelper)) { throw 'Build aurora86-doom.exe before packaging.' }
+Copy-Item $doomHelper (Join-Path $bundle 'aurora86-doom.exe') -Force
 Copy-Item $binary $deployedExe
 $deployLog = Join-Path $packageOutput 'windows-deployment.log'
 & (Join-Path $QtRoot 'bin/windeployqt.exe') --release --compiler-runtime --translations en,pt_BR --dir $bundle $deployedExe 2>&1 |
@@ -76,6 +79,10 @@ Copy-Item (Join-Path $PSScriptRoot 'aurora86.ico') $bundle
 $licenses = Join-Path $bundle 'licenses'
 New-Item -ItemType Directory -Force $licenses | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'licenses/*') $licenses -Recurse -Force
+$doomLicenses = Join-Path $licenses 'doom'
+New-Item -ItemType Directory -Force $doomLicenses | Out-Null
+Get-ChildItem (Join-Path $projectRoot 'third_party/doom') -File | Where-Object { $_.Extension -ne '.wad' -and $_.Extension -ne '.h' } |
+    Copy-Item -Destination $doomLicenses -Force
 Get-ChildItem (Join-Path $projectRoot 'assets/*LICENSE*') -File | Copy-Item -Destination $licenses
 if (Test-Path (Join-Path $QtRoot 'LICENSES')) {
     Copy-Item (Join-Path $QtRoot 'LICENSES') (Join-Path $licenses 'Qt-SDK') -Recurse -Force

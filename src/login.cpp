@@ -61,14 +61,19 @@ QPixmap avatarPixmap(SimSystem *system, int size) {
             image.copy((image.width() - size) / 2, (image.height() - size) / 2, size, size));
     }
     QPixmap picture(size, size);
-    picture.fill(QColor("#203d35"));
+    picture.fill(Qt::transparent);
     QPainter painter(&picture);
-    painter.setPen(QPen(QColor("#b6cc95"), 2));
-    painter.drawRect(1, 1, size - 3, size - 3);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QLinearGradient gradient(0, 0, size, size);
+    gradient.setColorAt(0, QColor("#254e60"));
+    gradient.setColorAt(1, QColor("#1d303f"));
+    painter.setPen(QPen(QColor("#3d6a77"), 1));
+    painter.setBrush(gradient);
+    painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), 18, 18);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor("#b6cc95"));
-    painter.drawRect(size * 3 / 8, size / 5, size / 4, size / 4);
-    painter.drawRect(size / 4, size / 2, size / 2, size / 3);
+    painter.setBrush(QColor("#70e0cd"));
+    painter.drawEllipse(QRectF(size * .37, size * .22, size * .26, size * .26));
+    painter.drawRoundedRect(QRectF(size * .24, size * .55, size * .52, size * .26), size * .12, size * .12);
     return picture;
 }
 QDateTime simulatedTime(SimSystem *system) {
@@ -195,14 +200,14 @@ LoginScreen::LoginScreen(SimSystem *system, QWidget *parent) : QWidget(parent), 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(32, 24, 32, 24);
     auto *top = new QHBoxLayout;
-    auto *identity = plainLabel("AURORA/86 / auroraSYNC");
+    auto *identity = plainLabel("A / 86     PERSONAL SYSTEM");
     identity->setWordWrap(false);
-    identity->setStyleSheet("color:#e5e6c8;background:transparent");
+    identity->setStyleSheet("color:#b9d1df;background:transparent;font-size:13px");
     top->addWidget(identity, 1);
     clock_ = plainLabel();
     clock_->setWordWrap(false);
     clock_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    clock_->setStyleSheet("color:#e5e6c8;background:transparent");
+    clock_->setStyleSheet("color:#b9d1df;background:transparent;font-size:13px");
     top->addWidget(clock_);
     outer->addLayout(top);
     auto *center = new QScrollArea;
@@ -221,19 +226,25 @@ LoginScreen::LoginScreen(SimSystem *system, QWidget *parent) : QWidget(parent), 
     outer->addWidget(center, 1);
     auto *card = new QFrame;
     card->setObjectName("loginCard");
-    card->setMinimumWidth(500);
-    card->setMaximumWidth(510);
-    card->setStyleSheet("QFrame#loginCard{background:#e5e6c8;border:2px solid #8fac74}"
-                        "QFrame#loginCard QLabel{color:#172b2a;background:transparent}");
+    card->setMinimumWidth(470);
+    card->setMaximumWidth(500);
+    card->setStyleSheet("QFrame#loginCard{background:#132334;border:1px solid #375168;border-radius:18px}"
+                       "QFrame#loginCard QLabel{color:#dce9f2;background:transparent}"
+                       "QFrame#loginCard QLineEdit{background:#0d1928;color:#dce9f2;border:1px solid #375168;border-radius:7px;padding:12px}"
+                       "QFrame#loginCard QLineEdit:focus{border-color:#70e0cd}"
+                       "QPushButton{background:#1b3044;color:#dce9f2;border:1px solid #375168;padding:11px;border-radius:7px}"
+                       "QPushButton#loginSubmit{background:#70e0cd;color:#10232e;border:0;font-weight:600}"
+                       "QPushButton:hover{border-color:#70e0cd}");
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(24, 20, 24, 20);
-    layout->setSpacing(10);
-    auto *brand = plainLabel("auroraSYNC");
+    layout->setContentsMargins(32, 30, 32, 28);
+    layout->setSpacing(12);
+    auto *brand = plainLabel("Welcome to Aurora");
     brand->setAlignment(Qt::AlignCenter);
-    brand->setStyleSheet("font-size:28px;font-weight:bold;color:#172b2a;background:transparent");
+    brand->setStyleSheet("font-size:27px;font-weight:600;color:#e3edf5;background:transparent");
     layout->addWidget(brand);
-    auto *machine = plainLabel("A16 / 8 MHz / tty00 / local session");
+    auto *machine = plainLabel("Your personal workstation is ready.");
     machine->setAlignment(Qt::AlignCenter);
+    machine->setStyleSheet("font-size:13px;color:#92adbe;background:transparent");
     layout->addWidget(machine);
     auto *person = new QGridLayout;
     avatar_ = new QLabel;
@@ -242,7 +253,7 @@ LoginScreen::LoginScreen(SimSystem *system, QWidget *parent) : QWidget(parent), 
     person->addWidget(avatar_, 0, 0, 3, 1, Qt::AlignVCenter);
     name_ = plainLabel();
     name_->setObjectName("loginDisplayName");
-    name_->setStyleSheet("font-size:20px;font-weight:bold;color:#172b2a;background:transparent");
+    name_->setStyleSheet("font-size:20px;font-weight:600;color:#e3edf5;background:transparent");
     user_ = plainLabel();
     user_->setWordWrap(false);
     user_->setObjectName("loginUser");
@@ -265,7 +276,7 @@ LoginScreen::LoginScreen(SimSystem *system, QWidget *parent) : QWidget(parent), 
     layout->addWidget(password_);
     error_ = plainLabel();
     error_->setObjectName("loginError");
-    error_->setStyleSheet("color:#8b3429;background:transparent");
+    error_->setStyleSheet("color:#f0a3a0;background:transparent;font-size:13px");
     error_->setMinimumHeight(24);
     layout->addWidget(error_);
     auto *buttons = new QHBoxLayout;
@@ -279,9 +290,9 @@ LoginScreen::LoginScreen(SimSystem *system, QWidget *parent) : QWidget(parent), 
     layout->addLayout(buttons);
     centerLayout->addWidget(card, 0, Qt::AlignHCenter);
     centerLayout->addStretch();
-    auto *notice = plainLabel("Local identity / virtual disk / no network account required");
+    auto *notice = plainLabel("LOCAL SESSION     •     YOUR FILES STAY ON THIS STATION");
     notice->setAlignment(Qt::AlignCenter);
-    notice->setStyleSheet("color:#e5e6c8;background:transparent");
+    notice->setStyleSheet("color:#b9d1df;background:transparent;font-size:13px");
     outer->addWidget(notice);
     timer_ = new QTimer(this);
     timer_->setInterval(1000);
@@ -327,18 +338,29 @@ void LoginScreen::signIn() {
 void LoginScreen::updateClock() { clock_->setText(simulatedTime(system_).toString("dd MMM yyyy  HH:mm:ss")); }
 void LoginScreen::paintEvent(QPaintEvent *) {
     QPainter painter(this);
-    painter.fillRect(rect(), QColor("#172b2a"));
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.fillRect(rect(), QColor("#0b1421"));
     if (!background_.isNull()) {
         const QImage scaled =
             background_.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         painter.drawImage((width() - scaled.width()) / 2, (height() - scaled.height()) / 2, scaled);
-        painter.fillRect(rect(), QColor(0, 0, 0, 65));
+        painter.fillRect(rect(), QColor(4, 13, 24, 105));
     } else {
-        painter.setPen(QColor("#254438"));
-        for (int y = 0; y < height(); y += 24)
-            painter.drawLine(0, y, width(), y);
-        for (int x = 0; x < width(); x += 24)
-            painter.drawLine(x, 0, x, height());
+        QRadialGradient glow(width() * .72, height() * .2, width() * .8);
+        glow.setColorAt(0, QColor("#234e5c"));
+        glow.setColorAt(.6, QColor("#122b3d"));
+        glow.setColorAt(1, QColor("#0b1421"));
+        painter.fillRect(rect(), glow);
+        for (int i = 0; i < 4; ++i) {
+            QPainterPath ribbon;
+            ribbon.moveTo(width() * .3 + i * 35, -20);
+            ribbon.cubicTo(width() * .35, height() * .4, width() * .78, height() * .1, width() + 60, height() * .75 + i * 35);
+            painter.setPen(QPen(QColor(112, 224, 205, 9), 90 + i * 15));
+            painter.drawPath(ribbon);
+        }
+        painter.setPen(QPen(QColor(122, 171, 190, 25), 1));
+        for (int i = 0; i < 60; ++i)
+            painter.drawPoint((i * 191 + 29) % qMax(1, width()), (i * 113 + 77) % qMax(1, height()));
     }
 }
 void LoginScreen::showEvent(QShowEvent *event) {

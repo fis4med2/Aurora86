@@ -13,6 +13,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMdiSubWindow>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -219,6 +220,92 @@ class UiTest final : public QObject {
         QTRY_COMPARE(table->rowCount(), system.processes().size());
         QVERIFY(!table->findItems("ui-test.high", Qt::MatchExactly).isEmpty());
     }
+    void fileBrowserNavigatesFiltersAndCopiesOnVirtualDisk() {
+        QTemporaryDir directory;
+        SimSystem system(directory.path());
+        QVERIFY(system.load());
+        Speaker speaker(&system);
+        std::unique_ptr<QWidget> files(createFiles(&system, &speaker, [](const QString &, const QString &) {}, {}));
+        files->resize(900, 600);
+        files->show();
+        auto *path = files->findChild<QLineEdit *>("filesPath");
+        auto *filter = files->findChild<QLineEdit *>("filesSearch");
+        auto *table = files->findChild<QTableWidget *>("fileTable");
+        auto *back = files->findChild<QPushButton *>("filesBack");
+        QVERIFY(path && filter && table && back);
+        auto clickButton = [&](const QString &text) {
+            for (auto *button : files->findChildren<QPushButton *>())
+                if (button->text() == text) { button->click(); return true; }
+            return false;
+        };
+        const auto matches = table->findItems("README.txt", Qt::MatchExactly);
+        QCOMPARE(matches.size(), 1);
+        table->selectRow(matches.first()->row());
+        QVERIFY(clickButton("Copy"));
+        path->setText("/home/guest/docs");
+        QMetaObject::invokeMethod(path, "returnPressed");
+        QVERIFY(clickButton("Paste"));
+        QCOMPARE(system.read("/home/guest/docs/README.txt"), system.read("/home/guest/README.txt"));
+        filter->setText("welcome.bas");
+        QCOMPARE(table->rowCount(), 1);
+        QCOMPARE(table->item(0, 0)->text(), QString("welcome.bas"));
+        back->click();
+        QCOMPARE(path->text(), QString("/home/guest"));
+        QVERIFY(filter->text().isEmpty());
+    }
+    void systemCenterControlsServicesAndTracksProcesses() {
+        QTemporaryDir directory;
+        SimSystem system(directory.path());
+        QVERIFY(system.load());
+        std::unique_ptr<QWidget> center(createMonitor(&system));
+        auto *services = center->findChild<QTableWidget *>("systemServices");
+        auto *processes = center->findChild<QTableWidget *>("systemProcesses");
+        auto *journal = center->findChild<QPlainTextEdit *>("systemJournal");
+        QVERIFY(services && processes && journal);
+        auto networkRunning = [&] {
+            for (const auto &service : system.services())
+                if (service.name == "network") return service.running;
+            return false;
+        };
+        const auto network = services->findItems("network", Qt::MatchExactly);
+        QCOMPARE(network.size(), 1);
+        services->selectRow(network.first()->row());
+        center->findChild<QPushButton *>("serviceStop")->click();
+        QVERIFY(!networkRunning());
+        QVERIFY(journal->toPlainText().contains("Service stopped"));
+        center->findChild<QPushButton *>("serviceStart")->click();
+        QVERIFY(networkRunning());
+        const int pid = system.startProcess("ui.worker", 64);
+        QVERIFY(pid > 2);
+        QVERIFY(!processes->findItems("ui.worker", Qt::MatchExactly).isEmpty());
+        QVERIFY(system.stopProcess(pid));
+        QVERIFY(processes->findItems("ui.worker", Qt::MatchExactly).isEmpty());
+    }
+    void launcherSearchOpensApplicationAndRespectsSessionLock() {
+        QTemporaryDir directory;
+        SimSystem system(directory.path());
+        QVERIFY(system.load());
+        Desktop desktop(&system, true, nullptr, true);
+        desktop.show();
+        QApplication::processEvents();
+        auto *shortcut = desktop.findChild<QShortcut *>("launcherShortcut");
+        QVERIFY(shortcut);
+        QVERIFY(QMetaObject::invokeMethod(shortcut, "activated"));
+        auto *search = desktop.findChild<QLineEdit *>("launcherSearch");
+        auto *results = desktop.findChild<QListWidget *>("launcherResults");
+        QVERIFY(search && results);
+        search->setText("Calculator");
+        int visible = 0;
+        for (int i = 0; i < results->count(); ++i)
+            if (!results->item(i)->isHidden()) ++visible;
+        QCOMPARE(visible, 1);
+        QTest::keyClick(search, Qt::Key_Return);
+        QTRY_VERIFY(desktop.findChild<QMdiSubWindow *>("app_calc"));
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        desktop.lockSession();
+        QVERIFY(QMetaObject::invokeMethod(shortcut, "activated"));
+        QVERIFY(!desktop.findChild<QWidget *>("appLauncher"));
+    }
     void desktopUsesEnglishAndChecksOptionalHtop() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
@@ -314,7 +401,7 @@ class UiTest final : public QObject {
         QTRY_COMPARE(area->size(), frame->viewport()->size());
         QVERIFY(system.setSettings({{"username", "operator"}, {"displayName", "Aurora Operator"}}));
         Shell shell(&system);
-        QVERIFY(shell.prompt().startsWith("operator@aurora:"));
+        QVERIFY(shell.prompt().startsWith("operator@aurora86:"));
         QCOMPARE(shell.execute("whoami"), QString("operator"));
         desktop.launch("settings", "identity");
         QVERIFY(desktop.findChild<QLineEdit *>("identityUsername"));

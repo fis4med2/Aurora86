@@ -12,6 +12,43 @@
 class CoreTest : public QObject {
     Q_OBJECT
   private slots:
+    void servicesAndJournalSurviveRestart() {
+        QTemporaryDir dir;
+        SimSystem system(dir.path());
+        QVERIFY(system.load());
+        QCOMPARE(system.services().size(), 3);
+        QCOMPARE(system.processes().size(), 2);
+        QCOMPARE(system.usedMemoryKiB(), 512);
+        QVERIFY(!system.setting("scanlines", true).toBool());
+        QVERIFY(system.setServiceRunning("network.service", false));
+        QVERIFY(!system.setServiceRunning("unknown", false));
+        QVERIFY(system.setHostname("Workshop-16"));
+        QVERIFY(!system.setHostname("../invalid"));
+        QCOMPARE(system.read("/etc/hostname"), QByteArray("workshop-16\n"));
+        const int pid = system.startProcess("writer", 128);
+        QVERIFY(pid > 2);
+        QVERIFY(system.write("docs/field-notes.txt", "saved"));
+        QVERIFY(system.stopProcess(pid));
+        QVERIFY(system.journalEntries().join('\n').contains("Stopped writer"));
+        const auto before = system.journalEntries();
+        QVERIFY(!system.write("/etc/release", "forbidden"));
+        QCOMPARE(system.journalEntries(), before);
+        SimSystem reopened(dir.path());
+        QVERIFY(reopened.load());
+        QCOMPARE(reopened.hostname(), QString("workshop-16"));
+        QVERIFY(!reopened.services().first().running);
+        QVERIFY(reopened.journalEntries().join('\n').contains("field-notes.txt"));
+        QVERIFY(reopened.journalEntries().last().contains("persistent virtual disk restored"));
+        QCOMPARE(reopened.processes().size(), 2);
+        for (int i = 0; i < 140; ++i)
+            QVERIFY(reopened.write("docs/field-notes.txt", QByteArray::number(i)));
+        QCOMPARE(reopened.journalEntries(1000).size(), 128);
+        QVERIFY(reopened.journalEntries(0).isEmpty());
+        SimSystem bounded(dir.path());
+        QVERIFY(bounded.load());
+        QCOMPARE(bounded.journalEntries(1000).size(), 128);
+    }
+
     void filesAndPersistence() {
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
@@ -93,7 +130,7 @@ class CoreTest : public QObject {
             return entry.path == "/proc" && entry.directory && entry.permissions == 0555;
         }));
         QVERIFY(system.read("/proc/cpuinfo").contains("A16"));
-        QVERIFY(system.read("/proc/version").contains("AURORA/86 1.5"));
+        QVERIFY(system.read("/proc/version").contains("AURORA/86 1.6.0"));
         QVERIFY(system.read("/proc/loadavg").contains("0.00"));
         QCOMPARE(system.read("/proc/meminfo"),
                  QByteArray("MemTotal: 4096 kB\nMemFree: 3584 kB\nMemUsed: 512 kB\n"));
@@ -192,6 +229,9 @@ class CoreTest : public QObject {
         QVERIFY(!system.load());
         QVERIFY(!system.write("nao-salvar", "novo"));
         QVERIFY(!system.exists("nao-salvar"));
+        const int recoveryPid = system.startProcess("recovery", 64);
+        QVERIFY(recoveryPid > 2);
+        QVERIFY(system.stopProcess(recoveryPid));
         system.setSetting("theme", "green");
         QVERIFY(saved.open(QIODevice::ReadOnly));
         QCOMPARE(saved.readAll(), damaged);

@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 #include <optional>
 
@@ -20,6 +21,13 @@ struct SimProcess {
     int pid;
     QString name;
     int memoryKiB;
+    qint64 startedSeconds = 0;
+};
+
+struct SimService {
+    QString name;
+    QString description;
+    bool running;
 };
 
 class SimSystem : public QObject {
@@ -48,6 +56,11 @@ class SimSystem : public QObject {
     QList<SimProcess> processes() const;
     int usedMemoryKiB() const;
     qint64 uptimeSeconds() const;
+    QList<SimService> services() const;
+    bool setServiceRunning(const QString &name, bool running);
+    QStringList journalEntries(int limit = 100) const;
+    QString hostname() const;
+    bool setHostname(const QString &name);
     QVariant setting(const QString &key, const QVariant &fallback = {}) const;
     void setSetting(const QString &key, const QVariant &value);
     bool setSettings(const QVariantMap &values);
@@ -55,6 +68,8 @@ class SimSystem : public QObject {
     void changed();
     void processesChanged();
     void settingsChanged();
+    void journalChanged();
+    void servicesChanged();
 
   private:
     QElapsedTimer m_uptime;
@@ -62,6 +77,8 @@ class SimSystem : public QObject {
     QMap<QString, VEntry> m_entries;
     QVariantMap m_settings;
     QList<SimProcess> m_processes;
+    QMap<QString, bool> m_services{{"network", true}, {"spooler", true}, {"indexer", true}};
+    QStringList m_journal;
     mutable QString m_error;
     bool m_blocked = false;
     int m_nextPid = 3;
@@ -71,5 +88,6 @@ class SimSystem : public QObject {
     bool accessible(const QString &path) const;
     bool writableParent(const QString &path) const;
     bool protectedPath(const QString &path) const;
-    bool commit(const QMap<QString, VEntry> &previous);
+    bool commit(const QMap<QString, VEntry> &previous, const QString &event);
+    void appendJournal(const QString &unit, const QString &message);
 };

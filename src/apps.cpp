@@ -14,6 +14,8 @@
 #include <QtWidgets>
 #include <cmath>
 #include <stdexcept>
+#include <memory>
+#include <atomic>
 
 namespace {
 QVBoxLayout *column(QWidget *w) {
@@ -31,6 +33,48 @@ QPushButton *button(const QString &text, QHBoxLayout *row, std::function<void()>
 void failure(QWidget *w, SimSystem *s) {
     QMessageBox::warning(w, "AURORA / operation failed", s->lastError());
 }
+class MemoryHistory final : public QWidget {
+    QList<int> samples_;
+  public:
+    explicit MemoryHistory(QWidget *parent = nullptr) : QWidget(parent) { setMinimumHeight(140); }
+    void sample(int value) {
+        samples_.append(value);
+        if (samples_.size() > 60) samples_.removeFirst();
+        update();
+    }
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF plot = QRectF(rect()).adjusted(10, 12, -10, -12);
+        painter.fillRect(rect(), palette().base());
+        QColor grid = palette().text().color();
+        grid.setAlpha(24);
+        painter.setPen(grid);
+        for (int i = 0; i <= 4; ++i)
+            painter.drawLine(QPointF(plot.left(), plot.top() + plot.height()*i/4),
+                             QPointF(plot.right(), plot.top() + plot.height()*i/4));
+        if (samples_.isEmpty()) return;
+        QPainterPath line;
+        for (int i = 0; i < samples_.size(); ++i) {
+            const QPointF point(plot.left() + plot.width() * (60 - samples_.size() + i) / 59,
+                                plot.bottom() - plot.height() * samples_[i] / SimSystem::MemoryKiB);
+            if (!i) line.moveTo(point); else line.lineTo(point);
+        }
+        QColor accent = palette().highlight().color();
+        painter.setPen(QPen(accent, 2.5));
+        painter.drawPath(line);
+        QPainterPath area(line);
+        area.lineTo(plot.bottomRight());
+        area.lineTo(line.elementAt(0).x, plot.bottom());
+        area.closeSubpath();
+        QLinearGradient fill(plot.topLeft(), plot.bottomLeft());
+        accent.setAlpha(80);
+        fill.setColorAt(0, accent);
+        accent.setAlpha(4);
+        fill.setColorAt(1, accent);
+        painter.fillPath(area, fill);
+    }
+};
 class Terminal final : public QWidget {
     SimSystem *system_;
     Speaker *speaker_;
@@ -296,10 +340,11 @@ class Expression {
 class NetworkFence : public QWebEngineUrlRequestInterceptor {
   public:
     using QWebEngineUrlRequestInterceptor::QWebEngineUrlRequestInterceptor;
+    std::atomic_bool enabled{true};
     void interceptRequest(QWebEngineUrlRequestInfo &info) override {
         const auto scheme = info.requestUrl().scheme();
-        if (scheme != "https" && scheme != "http" && scheme != "data" && scheme != "blob" &&
-            scheme != "about")
+        if ((!enabled && (scheme == "http" || scheme == "https")) ||
+            (scheme != "https" && scheme != "http" && scheme != "data" && scheme != "blob" && scheme != "about"))
             info.block(true);
     }
 };
@@ -334,116 +379,189 @@ QWidget *createFiles(SimSystem *s, Speaker *speaker, AppLauncher launch, const Q
     auto *w = new QWidget(parent);
     auto *l = column(w);
     auto *nav = new QHBoxLayout;
-    auto *path = new QLineEdit(initial.isEmpty() ? "/home/guest" : s->normalize(initial));
-    nav->addWidget(new QLabel("DISK 0:"));
+    auto *back = new QPushButton("←");
+    back->setObjectName("filesBack");
+    back->setToolTip("Back · Alt+Left");
+    back->setFixedWidth(40);
+    nav->addWidget(back);
+    auto *up = new QPushButton("↑");
+    up->setToolTip("Parent folder · Alt+Up");
+    up->setFixedWidth(40);
+    nav->addWidget(up);
+    QString first = initial.isEmpty() ? "/home/guest" : s->normalize(initial);
+    if (!s->isDirectory(first))
+        first = "/home/guest";
+    auto *path = new QLineEdit(first);
+    path->setObjectName("filesPath");
+    path->setToolTip("Virtual disk address · Ctrl+L");
     nav->addWidget(path, 1);
     l->addLayout(nav);
+    auto *body = new QHBoxLayout;
+    auto *places = new QListWidget;
+    places->setObjectName("filesPlaces");
+    places->setFixedWidth(160);
+    places->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    places->setSpacing(5);
+    const QList<QPair<QString, QString>> shortcuts = {{"Home", "/home/guest"},
+        {"Documents", "/home/guest/docs"}, {"Images", "/home/guest/images"},
+        {"Disk 0", "/"}, {"System", "/etc"}, {"Processes", "/proc"}, {"Temporary", "/tmp"}};
+    for (const auto &[title, target] : shortcuts) {
+        auto *item = new QListWidgetItem(appIcon(target == "/proc" ? "monitor" : "files"), title, places);
+        item->setData(Qt::UserRole, target);
+    }
+    body->addWidget(places);
+    auto *files = new QVBoxLayout;
+    auto *filter = new QLineEdit;
+    filter->setObjectName("filesSearch");
+    filter->setPlaceholderText("Filter this folder…");
+    filter->setClearButtonEnabled(true);
+    files->addWidget(filter);
     auto *table = new QTableWidget(0, 4);
-    table->setHorizontalHeaderLabels({"NAME", "TYPE", "BYTES", "MODE"});
+    table->setHorizontalHeaderLabels({"Name", "Kind", "Size", "Permissions"});
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    for (int index : {1, 2, 3})
+        table->horizontalHeader()->setSectionResizeMode(index, QHeaderView::ResizeToContents);
     table->verticalHeader()->hide();
+    table->verticalHeader()->setDefaultSectionSize(38);
+    table->setShowGrid(false);
+    table->setAlternatingRowColors(true);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setObjectName("fileTable");
-    l->addWidget(table, 1);
+    files->addWidget(table, 1);
+    body->addLayout(files, 1);
+    l->addLayout(body, 1);
     auto *status = new QLabel;
-    l->addWidget(status);
-    auto refresh = [s, path, table, status] {
-        table->setRowCount(0);
-        for (const auto &v : s->list(s->normalize(path->text()))) {
-            int row = table->rowCount();
-            table->insertRow(row);
-            auto *name = new QTableWidgetItem(v.path.section('/', -1));
-            name->setData(Qt::UserRole, v.path);
-            name->setIcon(appIcon(v.directory ? "files" : "editor", QColor("#35574b")));
-            table->setItem(row, 0, name);
-            table->setItem(row, 1, new QTableWidgetItem(v.directory ? "DIR" : "DOC"));
-            table->setItem(row, 2, new QTableWidgetItem(v.directory ? "-" : QString::number(v.data.size())));
-            table->setItem(row, 3, new QTableWidgetItem(QString::number(v.permissions, 8)));
-        }
-        status->setText(QString("%1 entries  /  %2 KiB free")
-                            .arg(table->rowCount())
-                            .arg((SimSystem::DiskBytes - s->usedBytes()) / 1024));
-    };
+    status->setObjectName("filesStatus");
+    status->setWordWrap(true);
+    struct Navigation { QStringList history; int position = 0; QString copied; };
+    auto navigation = std::make_shared<Navigation>();
+    navigation->history << first;
     auto selected = [table]() -> QString {
-        return table->currentRow() < 0 ? QString()
-                                       : table->item(table->currentRow(), 0)->data(Qt::UserRole).toString();
+        auto *item = table->item(table->currentRow(), 0);
+        return item ? item->data(Qt::UserRole).toString() : QString();
     };
-    auto open = [selected, s, path, launch, refresh] {
-        QString file = selected();
-        if (file.isEmpty())
-            return;
-        if (s->isDirectory(file)) {
-            path->setText(file);
-            refresh();
-        } else {
-            QString ext = file.section('.', -1).toLower();
-            launch(QStringList{"ppm", "png", "jpg", "jpeg", "bmp", "gif"}.contains(ext) ? "image" : "editor",
-                   file);
+    auto refresh = [s, path, table, status, filter, back, navigation, selected] {
+        const QString previous = selected();
+        table->setRowCount(0);
+        int count = 0;
+        for (const auto &v : s->list(s->normalize(path->text()))) {
+            ++count;
+            const QString name = v.path.section('/', -1);
+            if (!name.contains(filter->text(), Qt::CaseInsensitive))
+                continue;
+            const int row = table->rowCount();
+            table->insertRow(row);
+            auto *item = new QTableWidgetItem(name);
+            item->setData(Qt::UserRole, v.path);
+            item->setIcon(appIcon(v.directory ? "files" : "editor"));
+            table->setItem(row, 0, item);
+            const QString extension = name.section('.', -1).toUpper();
+            table->setItem(row, 1, new QTableWidgetItem(v.directory ? "Folder" :
+                (name.contains('.') ? extension + " file" : "Document")));
+            table->setItem(row, 2, new QTableWidgetItem(v.directory ? "—" :
+                (v.data.size() < 1024 ? QString::number(v.data.size()) + " B" :
+                 QString::number(v.data.size() / 1024.0, 'f', 1) + " KiB")));
+            table->setItem(row, 3, new QTableWidgetItem(QString::number(v.permissions, 8)));
+            if (v.path == previous)
+                table->selectRow(row);
         }
+        status->setText(QString("%1 of %2 items    ·    %3 KiB available on Disk 0")
+                            .arg(table->rowCount()).arg(count)
+                            .arg((SimSystem::DiskBytes - s->usedBytes()) / 1024));
+        back->setEnabled(navigation->position > 0);
+    };
+    auto navigate = [s, path, filter, navigation, refresh, w](const QString &target, bool record = true) {
+        const QString destination = s->normalize(target);
+        if (!s->isDirectory(destination)) {
+            QMessageBox::warning(w, "Folder", "This virtual folder is unavailable.");
+            path->setText(navigation->history.at(navigation->position));
+            return;
+        }
+        if (record && destination != navigation->history.at(navigation->position)) {
+            while (navigation->history.size() > navigation->position + 1)
+                navigation->history.removeLast();
+            navigation->history << destination;
+            navigation->position = navigation->history.size() - 1;
+        }
+        path->setText(destination);
+        filter->clear();
+        refresh();
+    };
+    auto open = [selected, s, navigate, launch] {
+        const QString file = selected();
+        if (file.isEmpty()) return;
+        if (s->isDirectory(file)) navigate(file);
+        else launch(QStringList{"ppm", "png", "jpg", "jpeg", "bmp", "gif"}
+                .contains(file.section('.', -1).toLower()) ? "image" : "editor", file);
     };
     auto *row = new QHBoxLayout;
     l->addLayout(row);
-    button("Up", nav, [path, s, refresh] {
-        path->setText(s->normalize(path->text() + "/.."));
-        refresh();
-    });
     button("Open", row, open);
-    button("New", row, [w, s, path, launch] {
+    button("New file", row, [w, s, path, launch] {
         bool ok = false;
-        QString name = QInputDialog::getText(w, "New document", "Name:", QLineEdit::Normal, "new.txt", &ok);
-        if (!ok || name.isEmpty())
-            return;
-        QString target = s->normalize(name, path->text());
+        const QString name = QInputDialog::getText(w, "New document", "Name:", QLineEdit::Normal, "new.txt", &ok);
+        if (!ok || name.isEmpty()) return;
+        const QString target = s->normalize(name, path->text());
         if (s->exists(target)) {
             QMessageBox::warning(w, "New document", "The file already exists.");
             return;
         }
-        if (s->write(target, {}))
-            launch("editor", target);
-        else
-            failure(w, s);
+        if (s->write(target, {})) launch("editor", target);
+        else failure(w, s);
     });
     button("Folder", row, [w, s, path] {
         bool ok = false;
-        QString name = QInputDialog::getText(w, "New folder", "Name:", QLineEdit::Normal, "new-folder", &ok);
-        if (ok && !name.isEmpty() && !s->mkdir(s->normalize(name, path->text())))
-            failure(w, s);
+        const QString name = QInputDialog::getText(w, "New folder", "Name:", QLineEdit::Normal, "new-folder", &ok);
+        if (ok && !name.isEmpty() && !s->mkdir(s->normalize(name, path->text()))) failure(w, s);
     });
-    button("Move", row, [w, s, selected] {
-        QString source = selected();
-        if (source.isEmpty())
-            return;
+    button("Rename", row, [w, s, selected] {
+        const QString source = selected();
+        if (source.isEmpty()) return;
         bool ok = false;
-        QString dest =
-            QInputDialog::getText(w, "Move / rename", "New virtual path:", QLineEdit::Normal, source, &ok);
-        if (ok && !dest.isEmpty() && !s->move(source, s->normalize(dest, source.section('/', 0, -2))))
+        const QString destination = QInputDialog::getText(w, "Move / rename", "New virtual path:", QLineEdit::Normal, source, &ok);
+        if (ok && !destination.isEmpty() && !s->move(source, s->normalize(destination, source.section('/', 0, -2))))
             failure(w, s);
     });
-    button("Delete", row, [w, s, speaker, selected] {
-        QString file = selected();
-        if (file.isEmpty())
-            return;
-        if (QMessageBox::question(w, "Delete", "Delete " + file + " and its contents?",
-                                  QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
-            if (!s->remove(file, true))
-                failure(w, s);
-            else
-                speaker->play("operation");
+    auto *copy = button("Copy", row, [selected, navigation, status] {
+        navigation->copied = selected();
+        if (!navigation->copied.isEmpty()) status->setText("Copied " + navigation->copied + " · Choose a folder and Paste.");
+    });
+    auto *paste = button("Paste", row, [w, s, path, navigation, refresh] {
+        if (navigation->copied.isEmpty()) return;
+        const QString target = s->normalize(navigation->copied.section('/', -1), path->text());
+        if (!s->copy(navigation->copied, target)) failure(w, s);
+        else refresh();
+    });
+    auto *remove = button("Delete", row, [w, s, speaker, selected] {
+        const QString file = selected();
+        if (file.isEmpty()) return;
+        if (QMessageBox::question(w, "Delete", "Delete " + file + " and its contents?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+            if (!s->remove(file, true)) failure(w, s);
+            else speaker->play("operation");
         }
     });
+    l->addWidget(status);
+    QObject::connect(back, &QPushButton::clicked, w, [navigation, navigate] {
+        if (navigation->position > 0) navigate(navigation->history.at(--navigation->position), false);
+    });
+    QObject::connect(up, &QPushButton::clicked, w, [path, navigate] { navigate(path->text() + "/.."); });
+    QObject::connect(places, &QListWidget::itemClicked, w, [navigate](QListWidgetItem *item) { navigate(item->data(Qt::UserRole).toString()); });
     QObject::connect(table, &QTableWidget::cellDoubleClicked, w, [open](int, int) { open(); });
-    QObject::connect(path, &QLineEdit::returnPressed, w, [w, s, path, refresh] {
-        QString p = s->normalize(path->text());
-        if (!s->isDirectory(p)) {
-            QMessageBox::warning(w, "Directory", "The virtual directory does not exist.");
-            return;
-        }
-        path->setText(p);
-        refresh();
-    });
+    QObject::connect(path, &QLineEdit::returnPressed, w, [path, navigate] { navigate(path->text()); });
+    QObject::connect(filter, &QLineEdit::textChanged, w, refresh);
     QObject::connect(s, &SimSystem::changed, w, refresh);
+    for (const auto &[key, target] : QList<QPair<QKeySequence, QPushButton *>>{
+             {QKeySequence("Alt+Left"), back}, {QKeySequence("Alt+Up"), up},
+             {QKeySequence::Copy, copy}, {QKeySequence::Paste, paste}, {QKeySequence::Delete, remove}}) {
+        auto *shortcut = new QShortcut(key, table);
+        shortcut->setContext(Qt::WidgetShortcut);
+        QObject::connect(shortcut, &QShortcut::activated, target, &QPushButton::click);
+    }
+    auto *address = new QShortcut(QKeySequence("Ctrl+L"), w);
+    address->setContext(Qt::WidgetWithChildrenShortcut);
+    QObject::connect(address, &QShortcut::activated, path, [path] { path->setFocus(); path->selectAll(); });
     refresh();
     return w;
 }
@@ -562,13 +680,13 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     tabs->addTab(createWallpaperPanel(s), "Wallpaper");
     tabs->addTab(createIdentityPanel(s), "auroraSYNC");
     tabs->addTab(createDisplayPanel(s), "Display");
-    auto *title = new QLabel("CONTROL PANEL / AURORA 1.5");
+    auto *title = new QLabel("CONTROL PANEL / AURORA 1.6");
     l->addWidget(title);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     l->addLayout(form);
     auto *theme = new QComboBox;
-    theme->addItem("Green phosphor", "green");
+    theme->addItem("Aurora / midnight", "green");
     theme->addItem("Amber", "amber");
     theme->addItem("Paper / monochrome", "paper");
     theme->setCurrentIndex(qMax(0, theme->findData(s->setting("theme", "green"))));
@@ -590,7 +708,7 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     key->setChecked(s->setting("keySound", true).toBool());
     form->addRow("Keyboard", key);
     auto *lines = new QCheckBox("Desktop scanlines");
-    lines->setChecked(s->setting("scanlines", true).toBool());
+    lines->setChecked(s->setting("scanlines", false).toBool());
     form->addRow("Video", lines);
     auto *boot = new QCheckBox("Show startup self-test");
     boot->setChecked(s->setting("boot", true).toBool());
@@ -627,89 +745,212 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
     Q_UNUSED(s);
     auto *w = new QWidget(parent);
     auto *l = column(w);
-    auto *heading = new QLabel("GAMES ROOM / AURORA 1.5");
+    auto *heading = new QLabel("After hours.");
+    heading->setStyleSheet("font-size:28px;font-weight:600;background:transparent");
     l->addWidget(heading);
-    auto *intro = new QLabel("Six experiences. Pick one to begin.");
+    auto *intro = new QLabel("Seven worlds, one workstation. Choose your next session.");
     intro->setWordWrap(true);
     l->addWidget(intro);
-    struct Choice {
-        const char *id;
-        const char *title;
-        const char *description;
-    };
-    const Choice choices[] = {{"prism", "Prism", "Rotate mirrors and guide the laser to its receiver."},
-                              {"garden", "Orbital Garden", "Plan the irrigation to make the garden bloom."},
-                              {"echo", "Echo", "Watch, listen and repeat the signal sequence."},
-                              {"snake", "Circuit", "Route a signal without crossing its own trail."},
-                              {"blocks", "Orbital Watch", "Defend the station from a meteor shower."},
-                              {"hellgate", "HELLGATE", "Cross corridor 13: a textured 3D maze with drones and gates."}};
-    for (const auto &choice : choices) {
-        auto *frame = new QFrame;
-        auto *row = new QHBoxLayout(frame);
+    auto *scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    auto *library = new QWidget;
+    auto *grid = new QGridLayout(library);
+    grid->setSpacing(12);
+    struct Choice { const char *id; const char *title; const char *description; };
+    const Choice choices[] = {
+        {"doom", "DOOM / Original engine", "Real Doom engine. Freedoom included. Bring your Doom or Doom II WAD."},
+        {"hellgate", "HELLGATE", "Two sectors, a shooting boss, practice mode and best times."},
+        {"prism", "Prism", "Rotate mirrors. Bend light. Find the perfect path."},
+        {"garden", "Orbital Garden", "Build irrigation and bring the station garden to life."},
+        {"echo", "Echo", "Watch the lights, hear the pattern and repeat the signal."},
+        {"snake", "Circuit", "Route a signal without crossing its own trail."},
+        {"blocks", "Orbital Watch", "Protect the station from an incoming meteor storm."}};
+    for (int i = 0; i < int(std::size(choices)); ++i) {
+        const auto &choice = choices[i];
+        auto *card = new QFrame;
+        card->setMinimumHeight(150);
+        card->setObjectName("gameCard");
+        card->setStyleSheet("QFrame#gameCard{background:palette(alternate-base);border:1px solid palette(mid);border-radius:9px}");
+        auto *layout = new QVBoxLayout(card);
+        layout->setContentsMargins(16, 14, 16, 14);
         auto *play = new QPushButton(choice.title);
         play->setObjectName(QString("play_") + choice.id);
-        play->setIcon(appIcon(choice.id, QColor("#35574b")));
-        play->setIconSize(QSize(32, 32));
-        play->setMinimumWidth(210);
-        row->addWidget(play);
+        play->setIcon(appIcon(choice.id));
+        play->setIconSize(QSize(26, 26));
+        layout->addWidget(play);
         auto *description = new QLabel(choice.description);
         description->setWordWrap(true);
-        row->addWidget(description, 1);
-        l->addWidget(frame);
-        QObject::connect(play, &QPushButton::clicked, w,
-                         [launch, id = QString(choice.id)] { launch(id, {}); });
+        layout->addWidget(description, 1);
+        grid->addWidget(card, i / 2, i % 2);
+        QObject::connect(play, &QPushButton::clicked, w, [launch, id = QString(choice.id)] { launch(id, {}); });
     }
-    l->addStretch();
+    grid->setColumnStretch(0, 1);
+    grid->setColumnStretch(1, 1);
+    scroll->setWidget(library);
+    l->addWidget(scroll, 1);
     return w;
 }
 QWidget *createMonitor(SimSystem *s, QWidget *parent) {
     auto *w = new QWidget(parent);
     auto *l = column(w);
+    auto *heading = new QLabel("System Center");
+    heading->setStyleSheet("font-size:24px;font-weight:600;background:transparent");
+    l->addWidget(heading);
     auto *summary = new QLabel;
-    summary->setWordWrap(true);
+    summary->setObjectName("systemSummary");
     l->addWidget(summary);
+    auto *tabs = new QTabWidget;
+    tabs->setObjectName("systemTabs");
+    l->addWidget(tabs, 1);
+    auto *overview = new QWidget;
+    auto *overviewLayout = column(overview);
+    auto *cards = new QHBoxLayout;
+    auto metric = [cards](const QString &title, const QString &unit) {
+        auto *frame = new QFrame;
+        frame->setObjectName("resourceCard");
+        frame->setStyleSheet("QFrame#resourceCard{background:palette(base);border:1px solid palette(mid);border-radius:8px}");
+        auto *layout = new QVBoxLayout(frame);
+        layout->setContentsMargins(16, 12, 16, 12);
+        layout->addWidget(new QLabel(title));
+        auto *value = new QLabel;
+        value->setStyleSheet("font-size:26px;font-weight:600;background:transparent");
+        layout->addWidget(value);
+        layout->addWidget(new QLabel(unit));
+        cards->addWidget(frame, 1);
+        return value;
+    };
+    auto *memoryValue = metric("MEMORY", "of 4,096 KiB");
+    auto *diskValue = metric("DISK 0", "of 2,048 KiB");
+    auto *processValue = metric("PROCESSES", "virtual scheduler");
+    overviewLayout->addLayout(cards);
     auto *ram = new QProgressBar;
     ram->setRange(0, SimSystem::MemoryKiB);
-    l->addWidget(ram);
     auto *disk = new QProgressBar;
     disk->setRange(0, SimSystem::DiskBytes);
-    l->addWidget(disk);
-    auto *table = new QTableWidget(0, 3);
-    table->setHorizontalHeaderLabels({"PID", "PROCESS", "KiB"});
-    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    table->verticalHeader()->hide();
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    l->addWidget(table, 1);
-    auto refresh = [s, summary, ram, disk, table] {
-        summary->setText(QString("A16 / 8 MHz  |  RAM %1/4096 KiB  |  DISK %2/2048 KiB")
-                             .arg(s->usedMemoryKiB())
-                             .arg(s->usedBytes() / 1024));
+    overviewLayout->addWidget(ram);
+    overviewLayout->addWidget(disk);
+    overviewLayout->addWidget(new QLabel("MEMORY HISTORY  /  last 60 seconds"));
+    auto *history = new MemoryHistory;
+    overviewLayout->addWidget(history, 1);
+    auto *hardware = new QLabel("A16 CPU · 8 MHz · 16-bit bus    /    LUME display adapter\n"
+                               "Persistent virtual disk · Services controlled from the Services tab");
+    hardware->setWordWrap(true);
+    overviewLayout->addWidget(hardware);
+    auto *overviewScroll = new QScrollArea;
+    overviewScroll->setWidgetResizable(true);
+    overviewScroll->setFrameShape(QFrame::NoFrame);
+    overviewScroll->setWidget(overview);
+    tabs->addTab(overviewScroll, "Overview");
+    auto *processPage = new QWidget;
+    auto *processLayout = column(processPage);
+    auto makeTable = [](const QStringList &headers) {
+        auto *table = new QTableWidget(0, headers.size());
+        table->setHorizontalHeaderLabels(headers);
+        table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+        table->verticalHeader()->hide();
+        table->verticalHeader()->setDefaultSectionSize(36);
+        table->setShowGrid(false);
+        table->setAlternatingRowColors(true);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setSelectionMode(QAbstractItemView::SingleSelection);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        return table;
+    };
+    auto *table = makeTable({"PID", "Process", "Memory / KiB"});
+    table->setObjectName("systemProcesses");
+    processLayout->addWidget(table, 1);
+    auto *processActions = new QHBoxLayout;
+    processLayout->addLayout(processActions);
+    button("End process", processActions, [w, s, table] {
+        if (table->currentRow() < 0) return;
+        const int pid = table->item(table->currentRow(), 0)->text().toInt();
+        if (!s->stopProcess(pid)) failure(w, s);
+    });
+    processActions->addStretch();
+    tabs->addTab(processPage, "Processes");
+    auto *servicePage = new QWidget;
+    auto *serviceLayout = column(servicePage);
+    auto *serviceNote = new QLabel("Services belong to the virtual station. Stopping the print spooler pauses new print jobs.");
+    serviceNote->setWordWrap(true);
+    serviceLayout->addWidget(serviceNote);
+    auto *services = makeTable({"Service", "Description", "State"});
+    services->setObjectName("systemServices");
+    services->setColumnWidth(0, 120);
+    serviceLayout->addWidget(services, 1);
+    auto *serviceActions = new QHBoxLayout;
+    serviceLayout->addLayout(serviceActions);
+    for (bool running : {true, false}) {
+        auto *control = button(running ? "Start service" : "Stop service", serviceActions, [w, s, services, running] {
+            auto *item = services->item(services->currentRow(), 0);
+            if (item && !s->setServiceRunning(item->text(), running)) failure(w, s);
+        });
+        control->setObjectName(running ? "serviceStart" : "serviceStop");
+    }
+    serviceActions->addStretch();
+    tabs->addTab(servicePage, "Services");
+    auto *journal = new QPlainTextEdit;
+    journal->setObjectName("systemJournal");
+    journal->setReadOnly(true);
+    journal->setMaximumBlockCount(128);
+    journal->setStyleSheet("font-family:'DejaVu Sans Mono';font-size:13px");
+    tabs->addTab(journal, "Event log");
+    auto refresh = [s, summary, memoryValue, diskValue, processValue, ram, disk, table] {
+        summary->setText(QString("%1  /  AURORA 1.6    ·    Uptime %2h %3m %4s")
+            .arg(s->hostname()).arg(s->uptimeSeconds()/3600).arg(s->uptimeSeconds()/60%60).arg(s->uptimeSeconds()%60));
+        memoryValue->setText(QString::number(s->usedMemoryKiB()) + " KiB");
+        diskValue->setText(QString::number(s->usedBytes()/1024) + " KiB");
+        processValue->setText(QString::number(s->processes().size()));
         ram->setValue(s->usedMemoryKiB());
-        ram->setFormat("RAM  %v / %m KiB");
+        ram->setFormat("Memory allocated   %p%");
         disk->setValue(s->usedBytes());
-        disk->setFormat("DISK  %p%");
+        disk->setFormat("Disk used   %p%");
+        const int selectedPid = table->currentRow() < 0 ? -1 : table->item(table->currentRow(), 0)->text().toInt();
         table->setRowCount(0);
-        for (const auto &p : s->processes()) {
-            int r = table->rowCount();
-            table->insertRow(r);
-            table->setItem(r, 0, new QTableWidgetItem(QString::number(p.pid)));
-            table->setItem(r, 1, new QTableWidgetItem(p.name));
-            table->setItem(r, 2, new QTableWidgetItem(QString::number(p.memoryKiB)));
+        for (const auto &process : s->processes()) {
+            const int row = table->rowCount();
+            table->insertRow(row);
+            table->setItem(row, 0, new QTableWidgetItem(QString::number(process.pid)));
+            table->setItem(row, 1, new QTableWidgetItem(process.name));
+            table->setItem(row, 2, new QTableWidgetItem(QString::number(process.memoryKiB)));
+            if (process.pid == selectedPid) table->selectRow(row);
         }
     };
-    auto *row = new QHBoxLayout;
-    l->addLayout(row);
-    button("End process", row, [w, s, table] {
-        if (table->currentRow() < 0)
-            return;
-        int pid = table->item(table->currentRow(), 0)->text().toInt();
-        if (!s->stopProcess(pid))
-            failure(w, s);
-    });
+    auto refreshServices = [s, services] {
+        const QString selected = services->currentRow() < 0 ? QString() : services->item(services->currentRow(), 0)->text();
+        services->setRowCount(0);
+        for (const auto &service : s->services()) {
+            const int row = services->rowCount();
+            services->insertRow(row);
+            services->setItem(row, 0, new QTableWidgetItem(service.name));
+            services->setItem(row, 1, new QTableWidgetItem(service.description));
+            auto *state = new QTableWidgetItem(service.running ? "Running" : "Stopped");
+            state->setForeground(service.running ? services->palette().highlight().color() :
+                (services->palette().base().color().lightness() > 128 ? QColor("#945820") : QColor("#e4ac79")));
+            services->setItem(row, 2, state);
+            if (service.name == selected) services->selectRow(row);
+        }
+    };
+    auto refreshJournal = [s, journal] {
+        const QString text = s->journalEntries(128).join('\n');
+        if (text != journal->toPlainText()) {
+            journal->setPlainText(text);
+            journal->verticalScrollBar()->setValue(journal->verticalScrollBar()->maximum());
+        }
+    };
+    auto *timer = new QTimer(w);
+    timer->setInterval(1000);
+    QObject::connect(timer, &QTimer::timeout, w, [refresh, history, s] { refresh(); history->sample(s->usedMemoryKiB()); });
     QObject::connect(s, &SimSystem::changed, w, refresh);
     QObject::connect(s, &SimSystem::processesChanged, w, refresh);
+    QObject::connect(s, &SimSystem::settingsChanged, w, refresh);
+    QObject::connect(s, &SimSystem::servicesChanged, w, refreshServices);
+    QObject::connect(s, &SimSystem::journalChanged, w, refreshJournal);
     refresh();
+    refreshServices();
+    refreshJournal();
+    history->sample(s->usedMemoryKiB());
+    timer->start();
     return w;
 }
 QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, QWidget *parent) {
@@ -742,7 +983,10 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
     profile->setHttpCacheType(QWebEngineProfile::MemoryHttpCache);
     profile->setHttpCacheMaximumSize(8 * 1024 * 1024);
     profile->setPersistentCookiesPolicy(QWebEngineProfile::NoPersistentCookies);
-    profile->setUrlRequestInterceptor(new NetworkFence(profile));
+    auto *fence = new NetworkFence(profile);
+    for (const auto &service : s->services())
+        if (service.name == "network") fence->enabled = service.running;
+    profile->setUrlRequestInterceptor(fence);
     auto *page = new BrowserPage(profile, view);
     view->setPage(page);
     auto *settings = page->settings();
@@ -766,7 +1010,7 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
     auto home = [view] {
         view->setHtml(
             QString::fromUtf8(
-                R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><style>body{background:#efe5bd;color:#243d34;font:16px monospace;margin:36px;line-height:1.6}h1{font-size:38px;letter-spacing:-2px;border-bottom:3px solid;padding-bottom:14px}a{color:#35574b}small{letter-spacing:3px}li{margin:10px 0}footer{border-top:1px solid;margin-top:30px;padding-top:12px;font-size:13px}</style><small>DATA NETWORK / TERMINAL 01</small><h1>A world on a wire.</h1><p>Welcome to AURORA Network Mail.<br>Enter an HTTP or HTTPS address in the bar above.</p><ul><li><a href="https://example.com">Example / connection test</a></li><li><a href="https://en.wikipedia.org">Encyclopedia / Wikipedia</a></li><li><a href="https://info.cern.ch/hypertext/WWW/TheProject.html">Archive / the first website</a></li></ul><footer>1986 INTERFACE • MODERN WEB ENGINE<br>Real internet. Documents saved to the virtual disk.</footer></html>)HTML"),
+                R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><style>body{background:#0d1725;color:#dbe9f0;font:16px system-ui,sans-serif;margin:0;padding:52px;line-height:1.6}small{color:#69ddcf;letter-spacing:3px}h1{font-size:clamp(32px,6vw,56px);line-height:1.1;font-weight:500;margin:24px 0}p{color:#9aabbc;max-width:480px}a{display:block;background:#152235;border:1px solid #2e4357;border-radius:10px;color:#dbe9f0;padding:16px 20px;text-decoration:none;margin:12px 0;max-width:530px}a:hover{border-color:#69ddcf;color:#69ddcf}a span{float:right;color:#69ddcf}footer{color:#8095ab;font-size:13px;margin-top:32px}</style><small>AURORA NETWORK</small><h1>A world on a wire.</h1><p>Your workstation, connected. Enter a web address above or start somewhere familiar.</p><a href="https://en.wikipedia.org">Explore the encyclopedia <span>↗</span></a><a href="https://example.com">Test your connection <span>↗</span></a><a href="https://info.cern.ch/hypertext/WWW/TheProject.html">Visit the first website <span>↗</span></a><footer>Chromium browser · Save pages to your virtual disk</footer></html>)HTML"),
             QUrl("about:blank"));
     };
     button("<", row, [view] { view->back(); });
@@ -774,7 +1018,11 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
     button("Reload", row, [view] { view->reload(); });
     button("Home", row, home);
     row->addWidget(url, 1);
-    auto go = [url, view, w] {
+    auto go = [url, view, w, fence] {
+        if (!fence->enabled) {
+            QMessageBox::information(w, "Network offline", "Start the network service in System Center or run: systemctl start network");
+            return;
+        }
         QUrl target = QUrl::fromUserInput(url->text());
         if (target.scheme() != "https" && target.scheme() != "http") {
             QMessageBox::warning(w, "Address", "Only HTTP and HTTPS addresses are allowed.");
@@ -818,18 +1066,17 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
     });
     QObject::connect(view, &QWebEngineView::loadProgress, w,
                      [status](int n) { status->setText(QString("CONNECTING... %1%").arg(n)); });
-    QObject::connect(view, &QWebEngineView::loadFinished, w, [status, speaker, view](bool ok) {
-        if (ok)
-            view->page()->runJavaScript(
-                "(()=>{if(document.getElementById('aurora-screen'))return;const "
-                "s=document.createElement('style');s.id='aurora-screen';s.textContent='html{filter:grayscale("
-                "1) sepia(.45) "
-                "hue-rotate(30deg)}body,input,button,select,textarea{font-family:monospace!important}*{"
-                "border-radius:0!important;box-shadow:none!important}img{image-rendering:pixelated}';"
-                "document.head.appendChild(s)})()");
-        status->setText(ok ? "TRANSFER COMPLETE" : "CONNECTION FAILED / check the network and address");
-        if (!ok)
-            speaker->play("error");
+    QObject::connect(view, &QWebEngineView::loadFinished, w, [status, speaker](bool ok) {
+        status->setText(ok ? "Page ready" : "Connection failed / check the network and address");
+        if (!ok) speaker->play("error");
+    });
+    QObject::connect(s, &SimSystem::servicesChanged, w, [s, fence, view, status] {
+        for (const auto &service : s->services()) {
+            if (service.name != "network") continue;
+            fence->enabled = service.running;
+            if (!service.running) view->stop();
+            status->setText(service.running ? "Network bridge connected" : "Network service stopped · System Center → Services");
+        }
     });
     if (initial.isEmpty())
         home();
@@ -845,7 +1092,7 @@ QWidget *createAbout(QWidget *parent) {
     auto *l = column(w);
     auto *text = new QLabel("A U R O R A  /  8 6\n\nPERSONAL RESEARCH WORKSTATION\n"
                             "A16 series • 8 MHz • 4096 KiB\n2048 KiB magnetic disk\n\n"
-                            "AURORA system 1.5 / October 1986\nA small station. An entire world.\n\n"
+                            "AURORA system 1.6 / October 1986\nA small station. An entire world.\n\n"
                             "Hardware and processes are simulated.\nApplications built with C++ / Qt.\n"
                             "Browsing uses Chromium and the real internet.\n\n"
                             "F11  fullscreen      Ctrl+S  save\nTab  complete        ↑ / ↓   history");
@@ -930,11 +1177,12 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
     return w;
 }
 QIcon appIcon(const QString &kind, QColor ink) {
-    QPixmap map(32, 32);
+    QPixmap map(64, 64);
+    map.setDevicePixelRatio(2);
     map.fill(Qt::transparent);
     QPainter p(&map);
-    p.setRenderHint(QPainter::Antialiasing, false);
-    p.setPen(QPen(ink, 2));
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setPen(QPen(ink, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
     if (kind == "terminal") {
         p.drawRect(2, 4, 27, 22);
@@ -997,6 +1245,11 @@ QIcon appIcon(const QString &kind, QColor ink) {
         for (int y : {3, 18})
             for (int x : {3, 18})
                 p.drawRect(x, y, 10, 10);
+    } else if (kind == "doom") {
+        p.drawRoundedRect(QRectF(3, 3, 26, 26), 5, 5);
+        p.drawLine(9, 8, 9, 24);
+        p.drawPolyline(QPolygon({{9, 8}, {19, 8}, {24, 13}, {24, 19}, {19, 24}, {9, 24}}));
+        p.drawLine(14, 12, 14, 20);
     } else if (kind == "hellgate") {
         p.drawRect(3, 6, 26, 20);
         p.drawLine(3, 19, 29, 19);

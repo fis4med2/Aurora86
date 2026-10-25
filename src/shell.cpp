@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QRegularExpression>
+#include <algorithm>
 
 namespace {
 QString mode(int permissions, bool directory) {
@@ -198,7 +199,7 @@ QStringList builtinCommands()
             "eco",      "snake",  "blocks",  "hellgate", "about",  "aurora",   "lua",    "mods",   "basic",
             "history",  "alias",  "unalias", "export", "unset",    "env",    "which",  "type",
             "true",     "false",  "lpr",     "lpq",    "lprm",     "pack",   "unpack", "arc",
-            "screenshot"};
+            "screenshot", "systemctl", "journalctl", "uptime", "hostname", "hostnamectl", "du", "find", "doom", "mission-control"};
 }
 
 bool ensureDirectory(SimSystem *system, const QString &path)
@@ -231,7 +232,7 @@ QString Shell::prompt() const {
         return "basic> ";
     const QString user = m_system->setting("username", "guest").toString();
     return (user.isEmpty() ? QString("guest") : user) +
-           "@aurora:" + (m_cwd.startsWith("/home/guest") ? "~" + m_cwd.mid(11) : m_cwd) + "$ ";
+           "@" + m_system->hostname() + ":" + (m_cwd.startsWith("/home/guest") ? "~" + m_cwd.mid(11) : m_cwd) + "$ ";
 }
 
 QMap<QString, QString> Shell::aliases() const
@@ -471,8 +472,12 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
     // arguments so that "echo x > file" stays unambiguous.
     if (operators.isEmpty()) {
         QStringList expanded;
-        for (const auto &arg : args)
-            expanded << expandGlob(arg);
+        for (qsizetype index = 0; index < args.size(); ++index) {
+            if (command == "find" && index > 0 && args[index - 1] == "-name")
+                expanded << args[index];
+            else
+                expanded << expandGlob(args[index]);
+        }
         args = expanded;
     }
     const auto path = [this](const QString &input) { return m_system->normalize(input, m_cwd); };
@@ -485,7 +490,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
     if (command != "echo" && (redirect >= 0 || append >= 0))
         return "error: redirection is available only with echo.";
     if (command == "help")
-        return "ASTER shell / AURORA 1.5\n"
+        return "ASTER shell / AURORA 1.6.0\n"
                "ls [-l] [directory]   cd [directory]   pwd\n"
                "cat file              echo text [> or >> file]\n"
                "mkdir directory       touch file        rm [-r] path\n"
@@ -493,6 +498,12 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
                "stat path             df                free\n"
                "ps                    kill PID          date\n"
                "uname                 whoami            clear\n"
+               "uptime                hostname          hostnamectl\n"
+               "systemctl [status|start|stop|restart] [SERVICE]\n"
+               "journalctl [-n COUNT] [-u SERVICE]   system event log\n"
+               "find [PATH] [-name PATTERN] [-type f|d]   du [PATH]\n"
+               "mission-control       system dashboard / services\n"
+               "doom                  real Doom engine / WAD library\n"
                "lock                  lock auroraSYNC session\n"
                "edit [file]           files [directory] calc\n"
                "browser [URL]         games             packages\n"
@@ -512,6 +523,136 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
                "exit                  close this terminal\n"
                "Quoted paths, command history and Tab completion are supported.\n"
                "All commands and packages run inside the simulated computer.";
+    if (command == "uptime") {
+        if (!args.isEmpty())
+            return usage("uptime");
+        const auto seconds = m_system->uptimeSeconds();
+        return QString("up %1d %2:%3, %4 tasks, %5/%6 KiB RAM (simulated)")
+            .arg(seconds / 86400).arg((seconds / 3600) % 24, 2, 10, QChar('0'))
+            .arg((seconds / 60) % 60, 2, 10, QChar('0')).arg(m_system->processes().size())
+            .arg(m_system->usedMemoryKiB()).arg(SimSystem::MemoryKiB);
+    }
+    if (command == "hostname" || command == "hostnamectl") {
+        if (command == "hostname" && args.isEmpty())
+            return m_system->hostname();
+        if (command == "hostnamectl" && (args.isEmpty() || args == QStringList{"status"}))
+            return QString("Static hostname: %1\nOperating System: AURORA/86 1.6.0\nArchitecture: A16 / 16-bit\nVirtual hardware: 8 MHz, 4096 KiB RAM\nMachine state: persistent simulated workstation")
+                .arg(m_system->hostname());
+        QString name;
+        if (command == "hostname" && args.size() == 1)
+            name = args.first();
+        else if (command == "hostnamectl" && args.size() == 2 && args.first() == "set-hostname")
+            name = args.last();
+        else
+            return usage(command == "hostname" ? "hostname [NAME]" : "hostnamectl [status|set-hostname NAME]");
+        return m_system->setHostname(name) ? QString() : failure();
+    }
+    if (command == "systemctl") {
+        const QString action = args.isEmpty() ? "list-units" : args.first();
+        if (args.size() > 2)
+            return usage("systemctl [list-units|status|start|stop|restart|is-active] [SERVICE]");
+        if ((action == "list-units" || action == "status") && args.size() < 2) {
+            QStringList rows{"UNIT             STATE     DESCRIPTION"};
+            for (const auto &service : m_system->services())
+                rows << QString("%1 %2 %3").arg(service.name + ".service", -16)
+                            .arg(service.running ? "active" : "inactive", -9).arg(service.description);
+            rows << "Services belong to the simulated workstation; host services are unchanged.";
+            return rows.join('\n');
+        }
+        if (args.size() != 2 || !QStringList{"status", "start", "stop", "restart", "is-active"}.contains(action))
+            return usage("systemctl [list-units|status|start|stop|restart|is-active] [SERVICE]");
+        QString name = args.last();
+        if (name.endsWith(".service"))
+            name.chop(8);
+        const auto services = m_system->services();
+        const auto service = std::find_if(services.cbegin(), services.cend(), [&](const SimService &entry) { return entry.name == name; });
+        if (service == services.cend())
+            return "error: service not found: " + name;
+        if (action == "is-active") {
+            m_commandStatus = service->running ? 0 : 3;
+            return service->running ? "active" : "inactive";
+        }
+        if (action == "status")
+            return QString("%1.service — %2\nActive: %3\nMemory: included in the A16 kernel service pool")
+                .arg(name, service->description, service->running ? "active (running)" : "inactive (stopped)");
+        if (action == "restart" && !m_system->setServiceRunning(name, false))
+            return failure();
+        return m_system->setServiceRunning(name, action != "stop") ? name + ".service: " + (action == "stop" ? "stopped" : "started") : failure();
+    }
+    if (command == "journalctl") {
+        int count = 50;
+        QString unit;
+        for (qsizetype index = 0; index < args.size(); ++index) {
+            if (args[index] == "--no-pager")
+                continue;
+            if (args[index] == "-n" && index + 1 < args.size()) {
+                bool ok = false;
+                count = args[++index].toInt(&ok);
+                if (!ok || count < 0 || count > 128)
+                    return usage("journalctl [-n 0..128] [-u SERVICE]");
+            } else if (args[index] == "-u" && index + 1 < args.size()) {
+                unit = args[++index];
+                if (unit.endsWith(".service"))
+                    unit.chop(8);
+            } else
+                return usage("journalctl [-n 0..128] [-u SERVICE]");
+        }
+        QStringList lines;
+        for (const auto &entry : m_system->journalEntries(128))
+            if (unit.isEmpty() || entry.contains('[' + unit + ']'))
+                lines << entry;
+        return lines.mid(qMax(0, int(lines.size()) - count)).join('\n');
+    }
+    if (command == "find" || command == "du") {
+        QString target = m_cwd, pattern = "*", type;
+        qsizetype index = 0;
+        if (!args.isEmpty() && !args.first().startsWith('-')) {
+            target = path(args.first());
+            ++index;
+        }
+        while (index < args.size()) {
+            const QString flag = args[index++];
+            if (command == "find" && index < args.size() && (flag == "-name" || flag == "-type")) {
+                const QString value = args[index++];
+                if (flag == "-name")
+                    pattern = value;
+                else if (value == "f" || value == "d")
+                    type = value;
+                else
+                    return usage("find [PATH] [-name PATTERN] [-type f|d]");
+            } else
+                return usage(command == "find" ? "find [PATH] [-name PATTERN] [-type f|d]" : "du [PATH]");
+        }
+        if (!m_system->exists(target))
+            return "error: path unavailable: " + target;
+        QStringList queue{target}, matches;
+        qint64 total = 0;
+        const QRegularExpression namePattern(wildcardPattern(pattern));
+        while (!queue.isEmpty()) {
+            const QString current = queue.takeLast();
+            const bool directory = m_system->isDirectory(current);
+            if (!m_system->lastError().isEmpty())
+                return failure();
+            if (namePattern.match(current.section('/', -1)).hasMatch() &&
+                (type.isEmpty() || (directory && type == "d") || (!directory && type == "f")))
+                matches << current;
+            if (directory) {
+                const auto children = m_system->list(current);
+                if (!m_system->lastError().isEmpty())
+                    return failure();
+                for (const auto &entry : children)
+                    queue << entry.path;
+            } else {
+                total += m_system->read(current).size();
+                if (!m_system->lastError().isEmpty())
+                    return failure();
+            }
+        }
+        if (command == "du")
+            return QString("%1 KiB\t%2").arg((total + 1023) / 1024).arg(target);
+        matches.sort();
+        return matches.join('\n');
+    }
     PackageManager manager(m_system);
     auto builtinPackage = [&manager](const QString &name) {
         if (manager.ownsCommand(name))
@@ -846,6 +987,9 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
         const QString spool = "/tmp/print";
         const auto entries = [&] { return m_system->list(spool); };
         if (command == "lpr") {
+            for (const auto &service : m_system->services())
+                if (service.name == "spooler" && !service.running)
+                    return "error: spooler is stopped; run systemctl start spooler.";
             if (args.size() != 1)
                 return usage("lpr FILE");
             const QString target = path(args.first());
@@ -980,7 +1124,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
         return "Session locked.";
     }
     if (command == "uname")
-        return "AURORA/86 1.5  A16  8MHz  4096KiB  October1986";
+        return "AURORA/86 1.6.0  A16  8MHz  4096KiB  October1986";
     if (command == "date") {
         const auto now = QDateTime::currentDateTime();
         auto vintage = now;
@@ -1141,7 +1285,7 @@ QString Shell::runSimple(const QString &line, const QString &standardInput) {
             return usage("kill PID");
         return m_system->stopProcess(pid) ? QString() : failure();
     }
-    if (QStringList{"edit", "files", "calc", "browser", "snake", "blocks", "hellgate", "about"}.contains(command)) {
+    if (QStringList{"edit", "files", "calc", "browser", "snake", "blocks", "hellgate", "about", "doom", "mission-control"}.contains(command)) {
         if (args.size() > 1)
             return usage(command + " [path]");
         QString target = args.isEmpty() ? QString() : args.first();

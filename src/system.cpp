@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <algorithm>
 
 namespace {
@@ -24,6 +25,7 @@ SimSystem::SimSystem(const QString &stateDirectory, QObject *parent)
       m_processes{{1, "aurora.kernel", 384}, {2, "desktop", 128}} {
     m_uptime.start();
     seed();
+    appendJournal("kernel", "AURORA/86 1.6.0 booted; virtual disk and memory ready");
 }
 
 void SimSystem::seed() {
@@ -39,7 +41,7 @@ void SimSystem::seed() {
         m_entries.insert(path, {path, false, data, permissions});
     };
     file("/home/guest/README.txt",
-         "WELCOME TO AURORA/86 1.5\n"
+         "WELCOME TO AURORA/86 1.6.0\n"
          "A fictional A16 workstation from Aurora Laboratories.\n\n"
          "Type help in Terminal. Your home directory is /home/guest.\n"
          "Try basic to write a program in A16 BASIC, or basic docs/welcome.bas.\n"
@@ -53,7 +55,9 @@ void SimSystem::seed() {
          "Installed: aurora -l     Remove: aurora -r htop\n"
          "Packages are simulated; installation never changes Linux.\n"
          "Read live system information with cat /proc/meminfo or ls /proc.\n\n"
-         "ARCADE\nType hellgate for corridor 13, a 3D maze drawn by the A16 itself.\n\n"
+         "SYSTEM\nType systemctl to inspect services, journalctl for events, hostnamectl for identity.\n"
+         "Use find docs -name *.txt and du docs to explore your disk.\n\n"
+         "ARCADE\nType doom for the real Doom engine or hellgate for the original A16 maze.\n\n"
          "LUA PROGRAMS\nOpen Lua Studio with mods. Drop .lua files in its selected mods/ folder.\n"
          "Try aurora -i notepad todo, then run notepad or todo. Both save your work.\n"
          "Run a virtual script with lua /home/guest/example.lua.\n\n"
@@ -75,13 +79,14 @@ void SimSystem::seed() {
          "notes.txt\nmkdir projects\nmv notes.txt projects/\nchmod 444 "
          "projects/notes.txt\nfree\ndf\nps\naurora -i fastfetch htop tree grep "
          "coreutils\nfastfetch\nhtop\ntree\n");
-    file("/etc/release", "AURORA/86 1.5\nAurora Laboratories / October 1986\n", 0444);
+    file("/etc/release", "AURORA/86 1.6.0\nAurora Laboratories / October 1986\n", 0444);
     file("/sys/hardware",
          "CPU: A16 / 16-bit bus / 8 MHz\nRAM: 4096 KiB\nDISK: M2 magnetic drive / 2048 KiB\nVIDEO: LUME "
          "adapter / 960 x 640 / 4 tones\nSOUND: mono waveform generator\n",
          0444);
+    file("/etc/hostname", "aurora86\n", 0444);
     file("/bin/README",
-         "Built-in applications: terminal files edit calc browser games packages about handbook mods lua\nCommands are "
+         "Built-in applications: terminal files edit calc browser games packages about handbook mods lua doom\nCommands are "
          "interpreted by ASTER. Use aurora --list to browse optional packages.\n",
          0444);
     QByteArray ppm("P6\n160 100\n255\n");
@@ -104,6 +109,8 @@ bool SimSystem::fail(const QString &message) const {
 QString SimSystem::lastError() const { return m_error; }
 
 std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
+    if (path == "/etc/hostname")
+        return VEntry{path, false, hostname().toUtf8() + '\n', 0444};
     if (!under(path, "/proc")) {
         const auto it = m_entries.constFind(path);
         return it == m_entries.cend() ? std::nullopt : std::optional<VEntry>(*it);
@@ -126,7 +133,7 @@ std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
     if (path == "/proc/uptime")
         return VEntry{path, false, QByteArray::number(m_uptime.elapsed() / 1000.0, 'f', 2) + "\n", 0444};
     if (path == "/proc/version")
-        return VEntry{path, false, "AURORA/86 1.5 (aster@aurora) #1 A16\n", 0444};
+        return VEntry{path, false, "AURORA/86 1.6.0 (aster@aurora) #1 A16\n", 0444};
     if (path == "/proc/loadavg")
         return VEntry{path, false,
                       QString("%1 0.00 0.00 1/%2 %3\n")
@@ -155,6 +162,7 @@ std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
                               .arg(process.name)
                               .arg(pid)
                               .arg(process.memoryKiB)
+                              .append(QString("Uptime:\t%1 s\n").arg(qMax<qint64>(0, uptimeSeconds() - process.startedSeconds)))
                               .toUtf8(),
                           0444};
         return std::nullopt;
@@ -260,7 +268,9 @@ QList<VEntry> SimSystem::list(const QString &input) const {
     QList<VEntry> result;
     for (const auto &entry : m_entries)
         if (entry.path != path && parentPath(entry.path) == path)
-            result.append(entry);
+            result.append(entry.path == "/etc/hostname" ? *entryFor(entry.path) : entry);
+    if (path == "/etc" && !m_entries.contains("/etc/hostname"))
+        result.append(*entryFor("/etc/hostname"));
     if (path == "/")
         result.append(*entryFor("/proc"));
     else if (path == "/proc") {
@@ -308,12 +318,16 @@ int SimSystem::usedBytes() const {
     return bytes;
 }
 
-bool SimSystem::commit(const QMap<QString, VEntry> &previous) {
+bool SimSystem::commit(const QMap<QString, VEntry> &previous, const QString &event) {
+    const auto previousJournal = m_journal;
+    appendJournal("disk", event);
     if (!save()) {
         m_entries = previous;
+        m_journal = previousJournal;
         return false;
     }
     emit changed();
+    emit journalChanged();
     return true;
 }
 
@@ -337,7 +351,7 @@ bool SimSystem::write(const QString &input, const QByteArray &data) {
         return fail("Disk full (limit: 2048 KiB).");
     const auto previous = m_entries;
     m_entries.insert(path, {path, false, data, existing ? it->permissions : 0644});
-    return commit(previous);
+    return commit(previous, QString("Wrote %1 (%2 bytes)").arg(path).arg(data.size()));
 }
 
 bool SimSystem::mkdir(const QString &input) {
@@ -353,7 +367,7 @@ bool SimSystem::mkdir(const QString &input) {
         return fail("Disk full.");
     const auto previous = m_entries;
     m_entries.insert(path, {path, true, {}, 0755});
-    return commit(previous);
+    return commit(previous, "Created directory " + path);
 }
 
 bool SimSystem::remove(const QString &input, bool recursive) {
@@ -377,7 +391,7 @@ bool SimSystem::remove(const QString &input, bool recursive) {
     const auto previous = m_entries;
     for (const auto &key : paths)
         m_entries.remove(key);
-    return commit(previous);
+    return commit(previous, "Removed " + path);
 }
 
 bool SimSystem::move(const QString &input, const QString &destination) {
@@ -413,7 +427,7 @@ bool SimSystem::move(const QString &input, const QString &destination) {
         m_entries = previous;
         return fail("Disk full.");
     }
-    return commit(previous);
+    return commit(previous, "Moved " + source + " to " + target);
 }
 
 bool SimSystem::copy(const QString &input, const QString &destination) {
@@ -446,7 +460,7 @@ bool SimSystem::chmod(const QString &input, int permissions) {
         return fail("Invalid permissions.");
     const auto previous = m_entries;
     m_entries[path].permissions = permissions;
-    return commit(previous);
+    return commit(previous, "Permissions changed: " + path);
 }
 
 bool SimSystem::save() {
@@ -467,8 +481,12 @@ bool SimSystem::save() {
     QSaveFile file(QDir(m_directory).filePath("vfs.json"));
     if (!file.open(QIODevice::WriteOnly))
         return fail("Failed to save: " + file.errorString());
+    QJsonObject services;
+    for (auto it = m_services.cbegin(); it != m_services.cend(); ++it)
+        services.insert(it.key(), it.value());
     const auto bytes =
-        QJsonDocument(QJsonObject{{"version", 1}, {"entries", entries}, {"settings", settings}})
+        QJsonDocument(QJsonObject{{"version", 1}, {"entries", entries}, {"settings", settings},
+                                 {"services", services}, {"journal", QJsonArray::fromStringList(m_journal)}})
             .toJson(QJsonDocument::Compact);
     if (file.write(bytes) != bytes.size() || !file.commit())
         return fail("Failed to save: " + file.errorString());
@@ -490,6 +508,7 @@ bool SimSystem::load() {
         return invalid();
     QJsonParseError error;
     const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+    file.close();
     if (error.error != QJsonParseError::NoError || !document.isObject())
         return invalid();
     const auto root = document.object();
@@ -498,6 +517,27 @@ bool SimSystem::load() {
         return invalid();
     if (QJsonDocument(root.value("settings").toObject()).toJson(QJsonDocument::Compact).size() > 64 * 1024)
         return invalid();
+    QStringList journal;
+    if (root.contains("journal")) {
+        if (!root.value("journal").isArray() || root.value("journal").toArray().size() > 128)
+            return invalid();
+        for (const auto &entry : root.value("journal").toArray()) {
+            if (!entry.isString() || entry.toString().size() > 384)
+                return invalid();
+            journal.append(entry.toString());
+        }
+    }
+    auto serviceStates = m_services;
+    if (root.contains("services")) {
+        if (!root.value("services").isObject())
+            return invalid();
+        const auto services = root.value("services").toObject();
+        for (auto it = services.begin(); it != services.end(); ++it) {
+            if (!serviceStates.contains(it.key()) || !it.value().isBool())
+                return invalid();
+            serviceStates[it.key()] = it.value().toBool();
+        }
+    }
     QMap<QString, VEntry> loaded;
     qsizetype bytes = 0;
     for (const auto &value : root.value("entries").toArray()) {
@@ -545,10 +585,15 @@ bool SimSystem::load() {
     }
     m_entries = loaded;
     m_settings = root.value("settings").toObject().toVariantMap();
+    m_journal = journal;
+    m_services = serviceStates;
+    appendJournal("kernel", "Session started; persistent virtual disk restored");
     m_blocked = false;
     m_error.clear();
     emit changed();
     emit settingsChanged();
+    emit servicesChanged();
+    emit journalChanged();
     return true;
 }
 
@@ -558,8 +603,15 @@ int SimSystem::startProcess(const QString &name, int memoryKiB) {
         fail("Not enough memory. Close another application.");
         return -1;
     }
-    const int pid = m_nextPid++;
-    m_processes.append({pid, name, memoryKiB});
+    const int pid = m_nextPid;
+    m_processes.append({pid, name, memoryKiB, uptimeSeconds()});
+    appendJournal("scheduler", QString("Started %1 (PID %2, %3 KiB)").arg(name).arg(pid).arg(memoryKiB));
+    // Processes remain usable when the virtual disk is read-only or preserved after corruption.
+    if (!m_blocked)
+        save();
+    m_error.clear();
+    ++m_nextPid;
+    emit journalChanged();
     emit processesChanged();
     emit changed();
     return pid;
@@ -570,7 +622,12 @@ bool SimSystem::stopProcess(int pid) {
         return fail("Essential process is protected.");
     for (qsizetype i = 0; i < m_processes.size(); ++i)
         if (m_processes[i].pid == pid) {
-            m_processes.removeAt(i);
+            const auto stopped = m_processes.takeAt(i);
+            appendJournal("scheduler", QString("Stopped %1 (PID %2)").arg(stopped.name).arg(pid));
+            if (!m_blocked)
+                save();
+            m_error.clear();
+            emit journalChanged();
             emit processesChanged();
             emit changed();
             return true;
@@ -585,6 +642,8 @@ int SimSystem::usedMemoryKiB() const {
     return used;
 }
 QVariant SimSystem::setting(const QString &key, const QVariant &fallback) const {
+    if (key == "scanlines" && !m_settings.contains(key))
+        return false;
     return m_settings.value(key, fallback);
 }
 void SimSystem::setSetting(const QString &key, const QVariant &value) { setSettings({{key, value}}); }
@@ -601,3 +660,55 @@ bool SimSystem::setSettings(const QVariantMap &values) {
 }
 
 qint64 SimSystem::uptimeSeconds() const { return m_uptime.elapsed() / 1000; }
+
+void SimSystem::appendJournal(const QString &unit, const QString &message) {
+    QString clean = message;
+    clean.replace('\n', ' ');
+    clean.replace('\r', ' ');
+    m_journal.append(QString("+%1s [%2] %3").arg(uptimeSeconds(), 6, 10, QChar('0')).arg(unit, clean.left(300)));
+    while (m_journal.size() > 128)
+        m_journal.removeFirst();
+}
+QStringList SimSystem::journalEntries(int limit) const {
+    return m_journal.mid(qMax(0, int(m_journal.size()) - qBound(0, limit, 128)));
+}
+QList<SimService> SimSystem::services() const {
+    return {{"network", "Chromium network bridge", m_services.value("network")},
+            {"spooler", "A16 virtual printer queue", m_services.value("spooler")},
+            {"indexer", "Virtual disk file search", m_services.value("indexer")}};
+}
+bool SimSystem::setServiceRunning(const QString &input, bool running) {
+    m_error.clear();
+    QString name = input;
+    if (name.endsWith(".service"))
+        name.chop(8);
+    if (!m_services.contains(name))
+        return fail("Service not found: " + name);
+    if (m_services.value(name) == running)
+        return true;
+    const auto previousJournal = m_journal;
+    m_services[name] = running;
+    appendJournal(name, running ? "Service started" : "Service stopped");
+    if (!save()) {
+        m_services[name] = !running;
+        m_journal = previousJournal;
+        return false;
+    }
+    emit servicesChanged();
+    emit journalChanged();
+    emit changed();
+    return true;
+}
+QString SimSystem::hostname() const { return m_settings.value("hostname", "aurora86").toString(); }
+bool SimSystem::setHostname(const QString &name) {
+    if (!QRegularExpression("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$").match(name).hasMatch())
+        return fail("Hostname must contain 1-63 letters, digits or interior hyphens.");
+    const auto previousJournal = m_journal;
+    appendJournal("identity", "Hostname changed to " + name.toLower());
+    if (!setSettings({{"hostname", name.toLower()}})) {
+        m_journal = previousJournal;
+        return false;
+    }
+    emit journalChanged();
+    return true;
+}

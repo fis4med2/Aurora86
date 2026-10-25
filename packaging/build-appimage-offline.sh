@@ -55,6 +55,10 @@ for directory in ('usr/bin', 'usr/lib', 'usr/libexec', 'usr/plugins',
     (stage / directory).mkdir(parents=True, exist_ok=True)
 
 shutil.copy2(binary, stage / 'usr/bin/aurora86')
+doom_helper = binary.with_name('aurora86-doom')
+if not doom_helper.is_file():
+    raise RuntimeError(f'Compile também o motor Doom: {doom_helper}')
+shutil.copy2(doom_helper, stage / 'usr/bin/aurora86-doom')
 shutil.copy2(root / 'packaging/AppRun', stage / 'AppRun')
 (stage / 'AppRun').chmod(0o755)
 for target in ('aurora86.desktop', 'usr/share/applications/aurora86.desktop'):
@@ -74,7 +78,7 @@ if not process.is_file():
     raise SystemExit(f'QtWebEngineProcess ausente: {process}')
 shutil.copy2(process, stage / 'usr/libexec/QtWebEngineProcess')
 
-seeds = [binary, process]
+seeds = [binary, process, doom_helper]
 plugin_root = qt / 'plugins'
 plugin_groups = ('platforms', 'xcbglintegrations', 'wayland-shell-integration',
                  'wayland-decoration-client', 'wayland-graphics-integration-client',
@@ -180,6 +184,8 @@ for name in ('LICENSE', 'README.md', 'README.pt-BR.md'):
 shutil.copytree(root / 'mods', stage / 'mods', dirs_exist_ok=True)
 (licence_root := stage / 'usr/share/licenses').mkdir(parents=True, exist_ok=True)
 (licence_root / 'lua').mkdir(exist_ok=True)
+shutil.copytree(root / 'third_party/doom', licence_root / 'doom',
+                ignore=shutil.ignore_patterns('*.wad', '*.h'))
 for name in ('LICENSE.txt', 'UPSTREAM.txt'):
     shutil.copy2(root / 'third_party/lua' / name, licence_root / 'lua' / name)
 for source in (root / 'assets').glob('*LICENSE*'):

@@ -1,0 +1,17 @@
+PureDOOM: https://github.com/Daivuk/PureDOOM
+Commit: 355cfbd16fac119718879239336ee2ea408886bd
+License: GPL-2.0 (see LICENSE). PureDOOM.h is unmodified.
+PureDOOM.h SHA-256: ec16ce721436bf3fa4c338320afedd56a93c0b563a94ebf283718503c71ca780
+
+Freedoom Phase 1 0.13.0: https://github.com/freedoom/freedoom/releases/tag/v0.13.0
+Archive SHA-256 (verified against upstream CHECKSUM): 3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59
+freedoom1.wad SHA-256: 7323bcc168c5a45ff10749b339960e98314740a734c30d4b9f3337001f9e703d
+License: BSD-3-Clause (see COPYING.txt); original credits preserved.
+No commercial Doom assets are included.
+
+Optional runtime download (NOT bundled): original Doom shareware Episode 1, id Software.
+SDL project lists this file as Shareware Data: https://www.libsdl.org/projects/doom/
+URL: https://www.libsdl.org/projects/doom/data/doom1.wad.gz
+Archive SHA-256: 298c1e4bba353bb18447b69713a8e6d84888c52cf16d2e8b16d67a98618e407d
+IWAD SHA-256: bb449c7480e9a02a62012d041406e8e43daa51caa0650646d1307d8650b8f837
+Downloaded only when the user chooses Get Doom shareware; original data is stored outside the app bundle.

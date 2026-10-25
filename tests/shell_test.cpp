@@ -7,6 +7,49 @@
 class ShellTest : public QObject {
     Q_OBJECT
   private slots:
+    void systemCommandsControlOnlyTheVirtualMachine() {
+        QTemporaryDir dir;
+        SimSystem system(dir.path());
+        QVERIFY(system.load());
+        Shell shell(&system);
+        QSignalSpy launches(&shell, &Shell::launchRequested);
+        QVERIFY(shell.execute("systemctl").contains("network.service"));
+        QVERIFY(shell.execute("systemctl stop spooler").contains("stopped"));
+        QCOMPARE(shell.execute("systemctl is-active spooler"), QString("inactive"));
+        QCOMPARE(shell.lastStatus(), 3);
+        QVERIFY(shell.execute("lpr docs/journal.txt").contains("error: spooler is stopped"));
+        QVERIFY(shell.execute("systemctl restart spooler").contains("started"));
+        QVERIFY(shell.execute("lpr docs/journal.txt").contains("queued"));
+        QVERIFY(shell.execute("systemctl start nonexistent").startsWith("error:"));
+        QVERIFY(shell.execute("journalctl -u spooler -n 1").contains("Service started"));
+        QVERIFY(shell.execute("journalctl -n -1").startsWith("usage:"));
+        QCOMPARE(shell.execute("hostnamectl set-hostname studio16"), QString());
+        QCOMPARE(shell.execute("hostname"), QString("studio16"));
+        QVERIFY(shell.execute("hostnamectl").contains("A16"));
+        QVERIFY(shell.execute("uptime").contains("simulated"));
+        QCOMPARE(shell.execute("doom"), QString());
+        QCOMPARE(launches.last().first().toString(), QString("doom"));
+        QCOMPARE(shell.execute("mission-control"), QString());
+        QCOMPARE(launches.last().first().toString(), QString("mission-control"));
+    }
+
+    void findAndDuUseTheVirtualDiskAndRespectPermissions() {
+        QTemporaryDir dir;
+        SimSystem system(dir.path());
+        QVERIFY(system.load());
+        Shell shell(&system);
+        QVERIFY(system.mkdir("projects"));
+        QVERIFY(system.mkdir("projects/nested"));
+        QVERIFY(system.write("projects/nested/readme.txt", QByteArray(1100, 'a')));
+        QVERIFY(system.write("projects/data.bin", "data"));
+        QCOMPARE(shell.execute("find projects -name '*.txt' -type f"), QString("/home/guest/projects/nested/readme.txt"));
+        QVERIFY(shell.execute("du projects").startsWith("2 KiB"));
+        QVERIFY(shell.execute("find projects -type d").contains("/home/guest/projects/nested"));
+        QVERIFY(shell.execute("find missing").startsWith("error:"));
+        QVERIFY(system.chmod("projects/nested", 0600));
+        QVERIFY(shell.execute("find projects").startsWith("error: Permission denied"));
+    }
+
     void pipesFeedStandardInput() {
         QTemporaryDir dir;
         SimSystem system(dir.path());

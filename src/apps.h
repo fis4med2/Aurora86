@@ -14,6 +14,7 @@ QWidget *createMonitor(SimSystem *, QWidget * = nullptr);
 QWidget *createBrowser(SimSystem *, Speaker *, const QString &, QWidget * = nullptr);
 QWidget *createAbout(QWidget * = nullptr);
 QWidget *createHandbook(AppLauncher, QWidget * = nullptr);
+QWidget *createDoom(SimSystem *, QWidget * = nullptr);
 QWidget *createGameLibrary(SimSystem *, AppLauncher, QWidget * = nullptr);
 bool editorMayClose(QWidget *);
-QIcon appIcon(const QString &, QColor ink = QColor("#b6cc95"));
+QIcon appIcon(const QString &, QColor ink = QColor("#69ddcf"));

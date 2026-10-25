@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
     app.setApplicationName("AURORA86");
     app.setDesktopFileName("io.github.fis4med2.Aurora86");
     app.setOrganizationName("Aurora");
-    app.setApplicationVersion("1.5.0");
+    app.setApplicationVersion("1.6.0");
     app.setStyle("Fusion");
     QImageReader::setAllocationLimit(16);
     QFontDatabase::addApplicationFont(":/fonts/AuroraFixed.ttf");
@@ -32,13 +32,17 @@ int main(int argc, char **argv) {
                        {"skip-boot", "Skip the startup self-test"},
                        {"state-dir", "Host directory reserved for simulator state", "directory"},
                        {"self-test", "Check applications without network access and exit"},
+                       {"open", "Open an application after sign-in", "app"},
+                       {"doom-check", "Check the native Doom engine and exit"},
                        {"browser-check", "Check HTTP/HTTPS navigation and exit", "url"},
                        {"screenshot", "Save a desktop screenshot and exit", "file"},
                        {"boot-screenshot", "Save a boot screenshot and exit", "file"}});
     parser.process(app);
     QTemporaryDir temporary;
     const bool test = parser.isSet("self-test");
-    QString state = test ? temporary.path() : parser.value("state-dir");
+    const bool doomCheck = parser.isSet("doom-check");
+    if (doomCheck) QStandardPaths::setTestModeEnabled(true);
+    QString state = (test || doomCheck) ? temporary.path() : parser.value("state-dir");
     if (state.isEmpty())
         state = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (!QDir().mkpath(state)) {
@@ -78,9 +82,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    const bool capture = parser.isSet("screenshot") || parser.isSet("browser-check");
+    const bool capture = parser.isSet("screenshot") || parser.isSet("browser-check") || doomCheck;
     Desktop desktop(&system, test || parser.isSet("skip-boot") || capture, nullptr,
-                    test || (capture && !hasLoginPassword(&system)));
+                    test || doomCheck || (capture && !hasLoginPassword(&system)));
     if (parser.isSet("fullscreen") || system.setting("startupFullscreen", false).toBool())
         desktop.showFullScreen();
     else
@@ -92,7 +96,17 @@ int main(int argc, char **argv) {
                 loadError +
                     "\nThe original file has been preserved. Use another --state-dir for a new session.");
         });
-    if (parser.isSet("screenshot") && !parser.isSet("browser-check"))
+    if (parser.isSet("open")) {
+        auto *openTimer = new QTimer(&desktop);
+        openTimer->setInterval(100);
+        QObject::connect(openTimer, &QTimer::timeout, &desktop, [&, openTimer] {
+            if (desktop.isSessionLocked()) return;
+            openTimer->stop();
+            desktop.launch(parser.value("open"));
+        });
+        openTimer->start();
+    }
+    if (parser.isSet("screenshot") && !parser.isSet("browser-check") && !doomCheck)
         QTimer::singleShot(700, &desktop, [&] {
             desktop.screenshot(parser.value("screenshot"));
             app.exit(0);
@@ -146,6 +160,27 @@ int main(int argc, char **argv) {
             });
         });
 #endif
+    if (doomCheck) {
+        QTimer::singleShot(0, &desktop, [&] { desktop.launch("doom"); });
+        auto *checkTimer = new QTimer(&desktop);
+        checkTimer->setInterval(100);
+        const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + 20000;
+        QObject::connect(checkTimer, &QTimer::timeout, &desktop, [&, deadline, checkTimer] {
+            auto *doom = desktop.findChild<QWidget *>("doomApp");
+            const QString error = doom ? doom->property("doomError").toString() : QString();
+            if (doom && doom->property("doomFrames").toInt() >= 35) {
+                checkTimer->stop();
+                if (parser.isSet("screenshot")) desktop.screenshot(parser.value("screenshot"));
+                std::cout << "PASS: native Doom engine, 35+ rendered frames\n";
+                app.exit(0);
+            } else if (!error.isEmpty() || QDateTime::currentMSecsSinceEpoch() >= deadline) {
+                checkTimer->stop();
+                std::cerr << "FAIL: native Doom engine / " << error.toStdString() << "\n";
+                app.exit(1);
+            }
+        });
+        checkTimer->start();
+    }
     if (test)
         QTimer::singleShot(50, &desktop, [&] {
             for (const QString &id :

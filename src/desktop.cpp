@@ -21,12 +21,15 @@ class WindowBar final : public QWidget {
   public:
     WindowBar(QMdiSubWindow *window) : window_(window) {
         setObjectName("windowBar");
-        setFixedHeight(36);
-        setStyleSheet("QWidget#windowBar{background:palette(button);border-bottom:2px solid "
-                      "palette(text)}QLabel{color:palette(text);background:transparent}QPushButton{padding:0;"
-                      "min-height:0;border:1px solid "
-                      "palette(text);background:palette(button);color:palette(text)}QPushButton:hover{"
-                      "background:palette(highlight);color:palette(highlighted-text)}");
+        setFixedHeight(40);
+        setStyleSheet("QWidget#windowBar{background:palette(button);border-bottom:1px solid palette(mid);"
+                      "border-top-left-radius:9px;border-top-right-radius:9px}"
+                      "QWidget#windowBar[active=true]{background:palette(mid);border-bottom-color:palette(highlight)}"
+                      "QLabel{color:palette(text);background:transparent;font-size:13px;font-weight:600}"
+                      "QPushButton{padding:0;min-height:0;border:0;border-radius:5px;"
+                      "background:transparent;color:palette(text);font-size:16px}"
+                      "QPushButton:hover{background:palette(mid)}"
+                      "QPushButton#windowClose:hover{background:#d86667;color:white}");
         auto *row = new QHBoxLayout(this);
         row->setContentsMargins(8, 3, 4, 3);
         row->setSpacing(4);
@@ -49,6 +52,7 @@ class WindowBar final : public QWidget {
                         window->showMaximized();
                 });
             } else {
+                b->setObjectName("windowClose");
                 b->setToolTip("Close");
                 connect(b, &QPushButton::clicked, window, &QWidget::close);
             }
@@ -125,7 +129,7 @@ const Application applications[] = {{"terminal", "Terminal / tty", 192, {760, 46
                                     {"calc", "Calculator", 64, {370, 420}},
                                     {"image", "Atelier / images", 160, {650, 490}},
                                     {"settings", "Control Panel", 96, {790, 610}},
-                                    {"monitor", "System Monitor", 64, {790, 450}},
+                                    {"monitor", "System Center", 96, {900, 650}},
                                     {"browser", "Network Mail", 768, {960, 600}},
                                     {"snake", "Circuit / signal lab", 128, {660, 500}},
                                     {"blocks", "Orbital Watch", 192, {660, 500}},
@@ -133,7 +137,8 @@ const Application applications[] = {{"terminal", "Terminal / tty", 192, {760, 46
                                     {"garden", "Orbital Garden", 128, {720, 570}},
                                     {"echo", "Echo / signal memory", 96, {720, 560}},
                                     {"hellgate", "HELLGATE / corridor 13", 512, {860, 640}},
-                                    {"games", "Games Room", 64, {760, 580}},
+                                    {"doom", "DOOM / native engine", 768, {940, 730}},
+                                    {"games", "Games Room", 64, {820, 640}},
                                     {"packages", "Package Center", 128, {840, 580}},
                                     {"htop", "htop / A16 process viewer", 96, {840, 540}},
                                     {"lua", "Lua program", 192, {790, 580}},
@@ -180,6 +185,9 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     connect(lock, &QShortcut::activated, this, &Desktop::lockSession);
     auto *terminal = new QShortcut(QKeySequence("Ctrl+Alt+T"), this);
     connect(terminal, &QShortcut::activated, this, [this] { launch("terminal"); });
+    auto *launcher = new QShortcut(QKeySequence("Ctrl+Space"), this);
+    launcher->setObjectName("launcherShortcut");
+    connect(launcher, &QShortcut::activated, this, &Desktop::showLauncher);
     auto *help = new QShortcut(QKeySequence(Qt::Key_F1), this);
     help->setObjectName("handbookShortcut");
     connect(help, &QShortcut::activated, this, [this] { launch("handbook"); });
@@ -202,7 +210,7 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     connect(s, &SimSystem::settingsChanged, this, [this] {
         const QString theme = system_->setting("theme", "green").toString();
         const int fontSize = qBound(14, system_->setting("fontSize", 16).toInt(), 20);
-        const bool lines = system_->setting("scanlines", true).toBool();
+        const bool lines = system_->setting("scanlines", false).toBool();
         const QString path = system_->setting("wallpaperPath").toString();
         const QString mode = system_->setting("wallpaperMode", "cover").toString();
         const bool retro = system_->setting("wallpaperRetro", false).toBool();
@@ -246,67 +254,97 @@ Desktop::Desktop(SimSystem *s, bool skipBoot, QWidget *parent, bool bypassLogin)
     else
         beginBoot();
 }
+Desktop::~Desktop() {
+    // QWidget tears down its children after Desktop's members. Stop callbacks first:
+    // QMdiArea emits activation changes while destroying its subwindows.
+    qApp->removeEventFilter(this);
+    disconnect(system_, nullptr, this, nullptr);
+    for (auto *timer : findChildren<QTimer *>(QString(), Qt::FindDirectChildrenOnly)) {
+        timer->stop();
+        disconnect(timer, nullptr, this, nullptr);
+    }
+    if (area_) {
+        disconnect(area_, nullptr, this, nullptr);
+        area_->viewport()->removeEventFilter(this);
+        for (auto *window : area_->subWindowList())
+            static_cast<AppWindow *>(window)->finished = {};
+    }
+    area_ = nullptr;
+    taskbarLayout_ = nullptr;
+    taskbar_ = nullptr;
+    clock_ = nullptr;
+    meter_ = nullptr;
+}
 void Desktop::applyTheme() {
-    QString mode = system_->setting("theme", "green").toString();
+    const QString mode = system_->setting("theme", "green").toString();
     activeTheme_ = mode;
     activeFontSize_ = qBound(14, system_->setting("fontSize", 16).toInt(), 20);
-    QFont readable("DejaVu Sans Mono");
+    QFont readable("DejaVu Sans");
     readable.setPixelSize(activeFontSize_);
     readable.setStyleStrategy(QFont::PreferAntialias);
     qApp->setFont(readable);
-    activeScanlines_ = system_->setting("scanlines", true).toBool();
-    QString dark = "#172b2a", accent = "#b6cc95", paper = "#e5e6c8", mid = "#547361";
+    activeScanlines_ = system_->setting("scanlines", false).toBool();
+    QString base = "#0e1928", panel = "#18283b", ink = "#dce9f2", accent = "#70e0cd", edge = "#31465b";
     if (mode == "amber") {
-        dark = "#302519";
-        accent = "#e7b968";
-        paper = "#ebdbac";
-        mid = "#8d6c3f";
+        base = "#211b20"; panel = "#322731"; ink = "#f2e4d7"; accent = "#efbd83"; edge = "#5b4851";
     } else if (mode == "paper") {
-        dark = "#25292a";
-        accent = "#d6d8ca";
-        paper = "#e9e9da";
-        mid = "#777c75";
+        base = "#eef1ee"; panel = "#ffffff"; ink = "#243c43"; accent = "#26766d"; edge = "#c7d3d2";
     }
     QPalette palette;
-    palette.setColor(QPalette::Window, QColor(paper));
-    palette.setColor(QPalette::WindowText, QColor(dark));
-    palette.setColor(QPalette::Base, QColor(paper));
-    palette.setColor(QPalette::AlternateBase, QColor(accent));
-    palette.setColor(QPalette::Text, QColor(dark));
-    palette.setColor(QPalette::Button, QColor(paper));
-    palette.setColor(QPalette::ButtonText, QColor(dark));
-    palette.setColor(QPalette::Highlight, QColor(dark));
-    palette.setColor(QPalette::HighlightedText, QColor(paper));
-    palette.setColor(QPalette::Light, QColor(paper));
-    palette.setColor(QPalette::Dark, QColor(dark));
+    palette.setColor(QPalette::Window, QColor(base));
+    palette.setColor(QPalette::WindowText, QColor(ink));
+    palette.setColor(QPalette::Base, QColor(base));
+    palette.setColor(QPalette::AlternateBase, QColor(panel));
+    palette.setColor(QPalette::Text, QColor(ink));
+    palette.setColor(QPalette::Button, QColor(panel));
+    palette.setColor(QPalette::ButtonText, QColor(ink));
+    palette.setColor(QPalette::Highlight, QColor(accent));
+    palette.setColor(QPalette::HighlightedText, QColor(base));
+    palette.setColor(QPalette::Light, QColor(edge));
+    palette.setColor(QPalette::Mid, QColor(edge));
+    palette.setColor(QPalette::Dark, QColor(base));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(edge));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(edge));
     qApp->setPalette(palette);
     qApp->setStyleSheet(QString(R"CSS(
- QWidget{font-family:'DejaVu Sans Mono';font-size:%5px;}
- QMainWindow{background:%1;} QMenuBar{background:%3;color:%1;border-bottom:2px solid %1;padding:3px;} QMenuBar::item{padding:6px 12px;} QMenuBar::item:selected,QMenu::item:selected{background:%1;color:%3;}
- QMenu{background:%3;border:2px solid %1;padding:4px;}QMenu::item{padding:7px 24px 7px 12px;}QMenu::separator{height:1px;background:%1;margin:4px;}
- QPushButton{background:%3;border:1px solid %1;border-bottom:3px solid %1;padding:6px 10px;min-height:16px;}QPushButton:hover{background:%2;}QPushButton:pressed{border-bottom:1px solid %1;padding-top:8px;}QPushButton:disabled{color:%4;}
- QLineEdit,QPlainTextEdit,QTextEdit,QTableWidget,QComboBox,QDateTimeEdit{background:%3;color:%1;border:1px solid %1;padding:4px;selection-background-color:%1;selection-color:%3;}
- QPlainTextEdit#terminalOutput,QWidget#terminal,QWidget#terminal QLineEdit,QWidget#terminal QLabel{background:%1;color:%2;border:none;}
- QTableWidget{gridline-color:%4;}QHeaderView::section{background:%2;color:%1;border:0;border-bottom:2px solid %1;padding:6px;}QTableWidget::item{padding:4px;}
- QStatusBar{background:%3;color:%1;border-top:2px solid %1;}QStatusBar::item{border:0;}
- QMdiSubWindow{background:%3;border:2px solid %1;}QMdiSubWindow::title{background:%1;color:%3;padding:5px;}
- QScrollBar:vertical{background:%3;width:14px;}QScrollBar::handle:vertical{background:%4;border:1px solid %1;min-height:18px;}QScrollBar:horizontal{background:%3;height:14px;}QScrollBar::handle:horizontal{background:%4;border:1px solid %1;min-width:18px;}
- QProgressBar{background:%3;border:1px solid %1;text-align:center;min-height:20px;}QProgressBar::chunk{background:%4;}
- QCheckBox{spacing:10px;padding:4px;}QCheckBox::indicator{width:14px;height:14px;border:1px solid %1;background:%3;}QCheckBox::indicator:checked{background:%4;}
- QToolTip{background:%3;color:%1;border:1px solid %1;}
- )CSS")
-                            .arg(dark, accent, paper, mid, QString::number(activeFontSize_)));
+ QWidget{font-family:'DejaVu Sans';font-size:%6px;}
+ QMainWindow{background:%1;}
+ QMenuBar{background:%1;color:%3;border-bottom:1px solid %5;padding:5px 8px;}
+ QMenuBar::item{padding:7px 12px;border-radius:5px;}QMenuBar::item:selected,QMenu::item:selected{background:%2;color:%4;}
+ QMenu{background:%2;color:%3;border:1px solid %5;border-radius:8px;padding:7px;}
+ QMenu::item{padding:8px 26px 8px 12px;border-radius:4px;}QMenu::separator{height:1px;background:%5;margin:6px;}
+ QPushButton,QToolButton{background:%2;color:%3;border:1px solid %5;border-radius:6px;padding:7px 12px;min-height:18px;}
+ QPushButton:hover,QToolButton:hover{border-color:%4;color:%4;}QPushButton:pressed,QToolButton:pressed{background:%5;}
+ QPushButton:default{background:%4;color:%1;border-color:%4;font-weight:600;}
+ QPushButton:disabled{color:%5;}
+ QLineEdit,QPlainTextEdit,QTextEdit,QTextBrowser,QTableWidget,QListWidget,QComboBox,QDateTimeEdit,QSpinBox,QDoubleSpinBox{background:%1;color:%3;border:1px solid %5;border-radius:5px;padding:6px;selection-background-color:%4;selection-color:%1;}
+ QLineEdit:focus,QPlainTextEdit:focus,QComboBox:focus{border-color:%4;}
+ QWidget#terminal,QWidget#terminal QPlainTextEdit,QWidget#terminal QLineEdit,QWidget#terminal QLabel{font-family:'DejaVu Sans Mono';background:%1;color:%4;border:none;}
+ QTableWidget{gridline-color:%2;}QHeaderView::section{background:%2;color:%3;border:0;border-bottom:1px solid %5;padding:8px;text-align:left;}QTableWidget::item{padding:5px;}
+ QStatusBar{background:%1;color:%3;border-top:1px solid %5;padding:4px;}QStatusBar::item{border:0;}
+ QMdiSubWindow{background:%1;border:1px solid %5;border-radius:9px;}QMdiSubWindow:focus{border-color:%4;}
+ QToolButton#taskbarButton{background:transparent;border:0;border-radius:5px;padding:6px 10px;font-size:12px;}
+ QToolButton#taskbarButton:checked{background:%2;color:%4;border-bottom:2px solid %4;}
+ QScrollBar:vertical{background:transparent;width:10px;margin:2px;}QScrollBar::handle:vertical{background:%5;border-radius:4px;min-height:24px;}
+ QScrollBar:horizontal{background:transparent;height:10px;margin:2px;}QScrollBar::handle:horizontal{background:%5;border-radius:4px;min-width:24px;}
+ QScrollBar::add-line,QScrollBar::sub-line{width:0;height:0;}QScrollBar::add-page,QScrollBar::sub-page{background:transparent;}
+ QProgressBar{background:%2;border:0;border-radius:4px;text-align:center;min-height:10px;}QProgressBar::chunk{background:%4;border-radius:4px;}
+ QCheckBox{spacing:9px;padding:4px;}QCheckBox::indicator{width:16px;height:16px;border:1px solid %5;border-radius:4px;background:%1;}QCheckBox::indicator:checked{background:%4;border-color:%4;}
+ QTabWidget::pane{border:1px solid %5;border-radius:6px;}QTabBar::tab{background:%1;color:%3;padding:10px 12px;border-bottom:2px solid transparent;}QTabBar::tab:selected{color:%4;border-bottom:2px solid %4;}
+ QGroupBox{border:1px solid %5;border-radius:7px;margin-top:14px;padding:12px;}QGroupBox::title{subcontrol-origin:margin;left:12px;padding:0 6px;color:%4;}
+ QToolTip{background:%2;color:%3;border:1px solid %5;padding:6px;}
+ )CSS").arg(base, panel, ink, accent, edge, QString::number(activeFontSize_)));
 }
 void Desktop::beginBoot() {
     boot_ = new QWidget;
-    boot_->setStyleSheet("background:#101e1c;color:#b6cc95");
+    boot_->setStyleSheet("background:#0b1421;color:#70e0cd;font-family:DejaVu Sans Mono");
     auto *l = new QVBoxLayout(boot_);
     l->setContentsMargins(70, 50, 70, 40);
     auto *brand = new QLabel("A U R O R A   /   8 6");
     QFont large = brand->font();
     large.setPixelSize(26);
     brand->setFont(large);
-    brand->setStyleSheet("font-size:26px;color:#b6cc95;background:#101e1c");
+    brand->setStyleSheet("font-size:32px;font-weight:600;color:#dce9f2;background:#0b1421");
     l->addWidget(brand);
     l->addWidget(new QLabel("A16 WORKSTATION / BOOT SYSTEM 1.04\nCOPYRIGHT (C) 1986 AURORA LABORATORIES\n"));
     auto *log = new QPlainTextEdit;
@@ -331,7 +369,7 @@ void Desktop::beginBoot() {
                          "[ VFS ] mounting persistent virtual disk ...",
                          "[ MOD ] scheduler, permissions, clock, speaker",
                          "[ NET ] protected network bridge / available on demand",
-                         "[ SYS ] AURORA 1.5 / kernel ready",
+                         "[ SYS ] AURORA 1.6 / kernel ready",
                          "[ USR ] guest session / /home/guest",
                          "[ GUI ] starting desktop environment ..."};
     bootTimer_ = new QTimer(this);
@@ -372,17 +410,20 @@ void Desktop::startDesktop() {
     applyDisplayMode();
     area_->viewport()->installEventFilter(this);
     auto action = [this](QMenu *menu, const QString &label, const QString &id) {
-        auto *a = menu->addAction(appIcon(id, QColor("#35574b")), label);
+        auto *a = menu->addAction(appIcon(id, QColor("#70e0cd")), label);
         connect(a, &QAction::triggered, this, [this, id] { launch(id); });
     };
     auto *bar = menuBar();
     bar->setNativeMenuBar(false);
     auto *systemMenu = bar->addMenu("AURORA / 86");
+    auto *launcherAction = systemMenu->addAction("Launch an application    Ctrl+Space");
+    connect(launcherAction, &QAction::triggered, this, &Desktop::showLauncher);
+    systemMenu->addSeparator();
     action(systemMenu, "About this station", "about");
     action(systemMenu, "Control Panel", "settings");
     auto *personalize = systemMenu->addAction("Wallpaper...");
     connect(personalize, &QAction::triggered, this, [this] { launch("settings", "wallpaper"); });
-    action(systemMenu, "System Monitor", "monitor");
+    action(systemMenu, "System Center", "monitor");
     systemMenu->addSeparator();
     auto *lockAction = systemMenu->addAction("Lock session    Ctrl+Alt+L");
     connect(lockAction, &QAction::triggered, this, &Desktop::lockSession);
@@ -405,6 +446,7 @@ void Desktop::startDesktop() {
                 .contains(a.id))
             action(apps, QString::fromUtf8(a.title), a.id);
     auto *games = bar->addMenu("Games");
+    action(games, "DOOM / original engine", "doom");
     action(games, "Games Room", "games");
     games->addSeparator();
     action(games, "Prism", "prism");
@@ -441,7 +483,12 @@ void Desktop::startDesktop() {
     clock_->setContentsMargins(12, 0, 12, 0);
     bar->setCornerWidget(clock_, Qt::TopRightCorner);
     meter_ = new QLabel;
-    statusBar()->addWidget(new QLabel("  A16  /  DISK 0: ONLINE"));
+    auto *launcherButton = new QToolButton;
+    launcherButton->setObjectName("launcherButton");
+    launcherButton->setText("◈  Launch");
+    launcherButton->setToolTip("Find an application · Ctrl+Space");
+    connect(launcherButton, &QToolButton::clicked, this, &Desktop::showLauncher);
+    statusBar()->addWidget(launcherButton);
     taskbar_ = new QWidget;
     taskbar_->setObjectName("taskbar");
     taskbarLayout_ = new QHBoxLayout(taskbar_);
@@ -451,26 +498,42 @@ void Desktop::startDesktop() {
     statusBar()->addPermanentWidget(meter_);
     refreshTaskbar();
     statusBar()->setSizeGripEnabled(false);
-    const QStringList desktopIds = {"terminal", "files", "editor", "browser", "games", "settings"};
-    const QStringList names = {"Terminal", "Disk 0:", "Writer", "Network", "Games", "Control"};
+    const QStringList desktopIds = {"terminal", "files", "browser", "monitor", "doom", "settings"};
+    const QStringList names = {"Terminal", "Disk 0", "Network", "System", "DOOM", "Control"};
     for (int i = 0; i < desktopIds.size(); ++i) {
         auto *b = new QToolButton(area_->viewport());
         b->setObjectName("desktopIcon");
         b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        b->setIcon(appIcon(desktopIds[i]));
+        const QList<QColor> colors{QColor("#70e0cd"), QColor("#f0c789"), QColor("#9dbbfa"),
+                                  QColor("#8ed5ee"), QColor("#eea197"), QColor("#b7a4e6")};
+        b->setIcon(appIcon(desktopIds[i], colors[i]));
         b->setIconSize({32, 32});
         b->setText(names[i]);
-        b->setGeometry(14, 20 + i * 91, 128, 84);
-        b->setStyleSheet("QToolButton{color:#e5e6c8;background:#172b2a;border:1px solid "
-                         "#547361;padding:7px}QToolButton:hover{background:#35574b;border:1px dotted "
-                         "#b6cc95}QToolButton:pressed{background:#547361}");
+        b->setGeometry(20, 85 + i * 73, 106, 65);
+        b->setStyleSheet("QToolButton{color:#dce9f2;background:rgba(18,32,49,190);border:1px solid "
+                         "#2e4357;border-radius:10px;padding:5px;font-size:12px}"
+                         "QToolButton:hover{background:#213a4c;border-color:#70e0cd}"
+                         "QToolButton:pressed{background:#305265}");
         connect(b, &QToolButton::clicked, this, [this, id = desktopIds[i]] { launch(id); });
         b->show();
     }
+    connect(area_, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow *active) {
+        for (auto *window : area_->subWindowList()) {
+            if (auto *bar = window->findChild<QWidget *>("windowBar")) {
+                bar->setProperty("active", window == active);
+                bar->style()->unpolish(bar);
+                bar->style()->polish(bar);
+            }
+        }
+        taskbarSignature_.clear();
+        refreshTaskbar();
+    });
     area_->viewport()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(area_->viewport(), &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         auto *menu = new QMenu(this);
         menu->setAttribute(Qt::WA_DeleteOnClose);
+        auto *launchAction = menu->addAction("Launch an application...");
+        connect(launchAction, &QAction::triggered, this, &Desktop::showLauncher);
         auto *item = menu->addAction("Customize wallpaper...");
         connect(item, &QAction::triggered, this, [this] { launch("settings", "wallpaper"); });
         menu->popup(area_->viewport()->mapToGlobal(pos));
@@ -485,6 +548,71 @@ void Desktop::startDesktop() {
     if (!system_->lastError().isEmpty())
         QTimer::singleShot(100, this,
                            [this] { QMessageBox::warning(this, "Virtual disk", system_->lastError()); });
+}
+void Desktop::showLauncher() {
+    if (!started_ || locked_)
+        return;
+    auto *dialog = new QDialog(this, Qt::Dialog | Qt::FramelessWindowHint);
+    dialog->setObjectName("appLauncher");
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setModal(true);
+    dialog->setFixedSize(590, 475);
+    auto *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(24, 22, 24, 20);
+    layout->setSpacing(12);
+    auto *title = new QLabel("Launch an application");
+    title->setStyleSheet("font-size:21px;font-weight:600");
+    layout->addWidget(title);
+    auto *search = new QLineEdit;
+    search->setObjectName("launcherSearch");
+    search->setPlaceholderText("Search apps, tools and games…");
+    search->setClearButtonEnabled(true);
+    layout->addWidget(search);
+    auto *results = new QListWidget;
+    results->setObjectName("launcherResults");
+    results->setIconSize(QSize(26, 26));
+    results->setSpacing(3);
+    for (const auto &app : applications) {
+        const QString id(app.id);
+        if (QStringList{"lua", "pager", "htop"}.contains(id))
+            continue;
+        auto *item = new QListWidgetItem(appIcon(id, QColor("#70e0cd")), QString::fromUtf8(app.title), results);
+        item->setData(Qt::UserRole, id);
+        item->setSizeHint(QSize(0, 42));
+    }
+    results->setCurrentRow(0);
+    layout->addWidget(results, 1);
+    auto *hint = new QLabel("Enter to open  ·  ↑ ↓ to browse  ·  Esc to close");
+    hint->setStyleSheet("font-size:12px;color:palette(mid)");
+    layout->addWidget(hint);
+    connect(search, &QLineEdit::textChanged, dialog, [results](const QString &query) {
+        QListWidgetItem *first = nullptr;
+        for (int i = 0; i < results->count(); ++i) {
+            auto *item = results->item(i);
+            const bool matches = item->text().contains(query, Qt::CaseInsensitive) ||
+                                 item->data(Qt::UserRole).toString().contains(query, Qt::CaseInsensitive);
+            item->setHidden(!matches);
+            if (matches && !first)
+                first = item;
+        }
+        results->setCurrentItem(first);
+    });
+    const auto activate = [this, dialog, results] {
+        auto *item = results->currentItem();
+        if (!item || item->isHidden())
+            return;
+        const QString id = item->data(Qt::UserRole).toString();
+        dialog->accept();
+        launch(id);
+    };
+    connect(search, &QLineEdit::returnPressed, dialog, activate);
+    connect(results, &QListWidget::itemActivated, dialog, [activate](QListWidgetItem *) { activate(); });
+    auto *down = new QShortcut(QKeySequence(Qt::Key_Down), search);
+    down->setContext(Qt::WidgetShortcut);
+    connect(down, &QShortcut::activated, dialog, [results] { results->setFocus(); });
+    dialog->move(mapToGlobal(rect().center()) - QPoint(dialog->width() / 2, dialog->height() / 2));
+    dialog->show();
+    search->setFocus();
 }
 void Desktop::launch(const QString &requested, const QString &path) {
     if (requested == "lock") {
@@ -580,6 +708,8 @@ void Desktop::launch(const QString &requested, const QString &path) {
         content = createEchoGame(system_);
     else if (id == "hellgate")
         content = createHellgateGame(system_);
+    else if (id == "doom")
+        content = createDoom(system_);
     else if (id == "games")
         content = createGameLibrary(system_, open);
     else if (id == "handbook")
@@ -621,7 +751,7 @@ void Desktop::refreshTaskbar()
     for (auto *window : area_->subWindowList())
         if (window->isVisible())
             titles << window->windowTitle();
-    const QString signature = titles.join('|');
+    const QString signature = titles.join('|') + QString::number(quintptr(area_->activeSubWindow()));
     if (signature == taskbarSignature_)
         return;
     taskbarSignature_ = signature;
@@ -641,10 +771,16 @@ void Desktop::refreshTaskbar()
             continue;
         auto *button = new QToolButton(taskbar_);
         button->setObjectName("taskbarButton");
-        button->setText(window->windowTitle());
+        button->setText(window->windowTitle().section(" / ", 0, 0));
+        button->setIcon(window->windowIcon());
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        button->setCheckable(true);
+        button->setChecked(window == area_->activeSubWindow());
         button->setToolTip("Restore " + window->windowTitle());
         button->setAutoRaise(true);
-        button->setMaximumWidth(210);
+        button->setMinimumWidth(34);
+        button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        button->setMaximumWidth(180);
         connect(button, &QToolButton::clicked, this, [this, window] {
             window->showNormal();
             area_->setActiveSubWindow(window);
@@ -693,7 +829,7 @@ void Desktop::showKeyboardReference()
     box.setText(
         "<b>Session</b><br>"
         "F11 — fullscreen &nbsp;&nbsp; Ctrl+Alt+L — lock &nbsp;&nbsp; Alt+F4 — close window<br>"
-        "Ctrl+Alt+T — terminal &nbsp;&nbsp; PrtSc — capture screen<br>"
+        "Ctrl+Alt+T — terminal &nbsp;&nbsp; Ctrl+Space — launcher &nbsp;&nbsp; PrtSc — capture screen<br>"
         "F1 — station handbook &nbsp;&nbsp; Shift+F1 — this list<br><br>"
         "<b>ASTER shell</b><br>"
         "<code>help</code> lists every command.<br>"
@@ -719,9 +855,10 @@ void Desktop::showKeyboardReference()
 void Desktop::updateMeters() {
     if (!clock_)
         return;
-    clock_->setText(simulatedTime(system_).toString("dd/MM/yyyy  HH:mm:ss"));
+    clock_->setText(simulatedTime(system_).toString("ddd d MMM   HH:mm"));
+    clock_->setStyleSheet("font-size:12px;color:palette(text)");
     refreshTaskbar();
-    meter_->setText(QString("%1 KiB FREE   /   %2 PROCESSES   ")
+    meter_->setText(QString("%1 KiB free   ·   %2 tasks  ")
                         .arg(SimSystem::MemoryKiB - system_->usedMemoryKiB())
                         .arg(system_->processes().size()));
 }
@@ -732,13 +869,8 @@ void Desktop::wallpaper() {
     if (size.isEmpty())
         return;
     QString mode = system_->setting("theme", "green").toString();
-    QColor base = mode == "amber"   ? QColor("#342b20")
-                  : mode == "paper" ? QColor("#303632")
-                                    : QColor("#203d35");
-    QColor dot = mode == "amber"   ? QColor("#514332")
-                 : mode == "paper" ? QColor("#3e4540")
-                                   : QColor("#2b4c40");
-    QColor ink = mode == "amber" ? QColor("#a18a5a") : QColor("#63816b");
+    QColor base = mode == "amber" ? QColor("#231c27") : mode == "paper" ? QColor("#cbdad9") : QColor("#0b1726");
+    const QColor accent = mode == "amber" ? QColor("#eabd83") : mode == "paper" ? QColor("#427c76") : QColor("#70e0cd");
     QPixmap map(size);
     map.fill(base);
     QPainter p(&map);
@@ -775,41 +907,66 @@ void Desktop::wallpaper() {
         area_->setBackground(QBrush(map));
         return;
     }
-    p.setPen(dot);
-    for (int y = 0; y < size.height(); y += 4)
-        for (int x = (y % 8) ? 0 : 2; x < size.width(); x += 4)
-            p.drawPoint(x, y);
-    if (system_->setting("scanlines", true).toBool()) {
-        p.setPen(QColor(0, 0, 0, 20));
+    p.setRenderHint(QPainter::Antialiasing);
+    QLinearGradient sky(0, 0, size.width(), size.height());
+    sky.setColorAt(0, base);
+    sky.setColorAt(.65, mode == "amber" ? QColor("#3d2c3a") : mode == "paper" ? QColor("#adcbc8") : QColor("#183b4b"));
+    sky.setColorAt(1, base);
+    p.fillRect(map.rect(), sky);
+    // A quiet, procedural aurora keeps the desktop crisp at every virtual resolution.
+    for (int i = 4; i >= 0; --i) {
+        QPainterPath ribbon;
+        const qreal y = size.height() * (.25 + i * .035);
+        ribbon.moveTo(size.width() * .35, -30);
+        ribbon.cubicTo(size.width() * .55, y + 130, size.width() * .82, y - 150, size.width() + 40, y + 80);
+        QColor glow = accent;
+        glow.setAlpha(11 + i * 5);
+        p.setPen(QPen(glow, 35 + i * 20, Qt::SolidLine, Qt::RoundCap));
+        p.drawPath(ribbon);
+    }
+    p.setPen(QColor(accent.red(), accent.green(), accent.blue(), 40));
+    for (int i = 0; i < 46; ++i) {
+        const int x = (i * 157 + 193) % size.width();
+        const int y = (i * 73 + 31) % qMax(1, size.height() * 2 / 3);
+        p.drawPoint(x, y);
+    }
+    const int horizon = size.height() * .73;
+    for (int layer = 0; layer < 3; ++layer) {
+        QPainterPath hills;
+        const qreal y = horizon + layer * 47;
+        hills.moveTo(0, y + 40);
+        hills.cubicTo(size.width() * .18, y - 85, size.width() * .25, y + 65, size.width() * .43, y - 25);
+        hills.cubicTo(size.width() * .68, y - 160 + layer * 30, size.width() * .8, y + 110, size.width(), y - 5);
+        hills.lineTo(size.width(), size.height());
+        hills.lineTo(0, size.height());
+        hills.closeSubpath();
+        p.setPen(Qt::NoPen);
+        p.setBrush(mode == "paper" ? QColor(77, 122, 126, 75 + layer * 30) : QColor(7, 18, 30, 110 + layer * 45));
+        p.drawPath(hills);
+    }
+    QFont label("DejaVu Sans");
+    label.setPixelSize(13);
+    label.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+    p.setFont(label);
+    p.setPen(accent);
+    p.drawText(26, 39, "A / 86");
+    p.setPen(mode == "paper" ? QColor("#345b60") : QColor("#c7dce3"));
+    label.setPixelSize(33);
+    label.setLetterSpacing(QFont::AbsoluteSpacing, 0);
+    label.setWeight(QFont::Light);
+    p.setFont(label);
+    p.drawText(161, 59, "Your workspace. Your world.");
+    label.setPixelSize(12);
+    p.setFont(label);
+    p.setPen(mode == "paper" ? QColor("#537779") : QColor("#87a5b5"));
+    p.drawText(163, 84, "AURORA PERSONAL SYSTEM   /   A16 WORKSTATION");
+    p.drawText(size.width() - 340, size.height() - 40, "A SMALL STATION. AN ENTIRE WORLD.");
+    p.drawText(size.width() - 340, size.height() - 21, "1986  /  BUILT FOR EXPLORATION");
+    if (activeScanlines_) {
+        p.setPen(QColor(0, 0, 0, 18));
         for (int y = 0; y < size.height(); y += 3)
             p.drawLine(0, y, size.width(), y);
     }
-    p.setPen(ink);
-    QFont logo = font();
-    logo.setPixelSize(26);
-    p.setFont(logo);
-    int x = qMax(170, size.width() - 395);
-    p.drawText(x, 54, "A U R O R A / 8 6");
-    p.setFont(font());
-    p.drawText(x, 79, "PERSONAL STATION / A16 SERIES");
-    p.drawLine(x, 91, size.width() - 40, 91);
-    p.drawText(x, 113, "A SMALL STATION.");
-    p.drawText(x, 132, "AN ENTIRE WORLD.");
-    int horizon = size.height() - 95;
-    int center = size.width() - 200;
-    p.setPen(ink);
-    p.drawLine(155, horizon, size.width(), horizon);
-    for (int i = -5; i <= 5; ++i)
-        p.drawLine(center + i * 15, horizon, center + i * 90, size.height());
-    for (int y = 12; y < 90; y += y / 2 + 6)
-        p.drawLine(155, horizon + y, size.width(), horizon + y);
-    p.drawPolyline(QPolygon({{size.width() - 420, horizon},
-                             {size.width() - 300, horizon - 82},
-                             {size.width() - 225, horizon - 31},
-                             {size.width() - 140, horizon - 128},
-                             {size.width() - 30, horizon}}));
-    p.drawEllipse(QRect(size.width() - 218, horizon - 165, 58, 58));
-    p.drawText(160, size.height() - 22, "AURORA SYSTEMS / OCT. 1986   •   16 BITS OF POSSIBILITY");
     p.end();
     area_->setBackground(QBrush(map));
 }

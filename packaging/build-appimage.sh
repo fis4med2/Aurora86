@@ -41,6 +41,10 @@ qt = {key: subprocess.check_output(['qmake6', '-query', key], text=True).strip()
       for key in ('QT_INSTALL_LIBS', 'QT_INSTALL_LIBEXECS', 'QT_INSTALL_DATA',
                   'QT_INSTALL_PLUGINS', 'QT_INSTALL_TRANSLATIONS')}
 shutil.copy2(binary, stage / 'usr/bin/aurora86')
+doom_helper = binary.with_name('aurora86-doom')
+if not doom_helper.is_file():
+    raise RuntimeError(f'Compile também o motor Doom: {doom_helper}')
+shutil.copy2(doom_helper, stage / 'usr/bin/aurora86-doom')
 shutil.copy2(root / 'packaging/AppRun', stage / 'AppRun')
 (stage / 'AppRun').chmod(0o755)
 for target in ('aurora86.desktop', 'usr/share/applications/aurora86.desktop'):
@@ -56,7 +60,7 @@ process = pathlib.Path(qt['QT_INSTALL_LIBEXECS']) / 'QtWebEngineProcess'
 if not process.is_file():
     raise RuntimeError(f'QtWebEngineProcess ausente: {process}')
 shutil.copy2(process, stage / 'usr/libexec/QtWebEngineProcess')
-seeds = [binary, process]
+seeds = [binary, process, doom_helper]
 plugin_root = pathlib.Path(qt['QT_INSTALL_PLUGINS'])
 plugin_groups = ('platforms', 'xcbglintegrations', 'wayland-shell-integration',
                  'wayland-decoration-client', 'wayland-graphics-integration-client', 'tls', 'multimedia')
@@ -160,6 +164,8 @@ for package in packages:
     source = pathlib.Path('/usr/share/licenses') / package
     if source.is_dir():
         shutil.copytree(source, licence_root / package, dirs_exist_ok=True)
+shutil.copytree(root / 'third_party/doom', licence_root / 'doom',
+                ignore=shutil.ignore_patterns('*.wad', '*.h'))
 assets = root / 'assets'
 for source in assets.glob('*LICENSE*'):
     shutil.copy2(source, licence_root / source.name)

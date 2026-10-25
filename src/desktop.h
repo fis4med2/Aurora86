@@ -15,6 +15,7 @@ class Desktop : public QMainWindow {
     Q_OBJECT
   public:
     Desktop(SimSystem *, bool skipBoot = false, QWidget *parent = nullptr, bool bypassLogin = false);
+    ~Desktop() override;
     void launch(const QString &app, const QString &path = {});
     void toggleFullscreen();
     void screenshot(const QString &path);
@@ -22,6 +23,7 @@ class Desktop : public QMainWindow {
     void lockSession();
     bool isSessionLocked() const { return locked_; }
     void showKeyboardReference();
+    void showLauncher();
 
   protected:
     void closeEvent(QCloseEvent *) override;
@@ -47,7 +49,7 @@ class Desktop : public QMainWindow {
     QHBoxLayout *taskbarLayout_ = nullptr;
     QString taskbarSignature_;
     QString activeTheme_;
-    bool activeScanlines_ = true;
+    bool activeScanlines_ = false;
     int activeFontSize_ = 16;
     QString activeWallpaperPath_, activeWallpaperMode_;
     bool activeWallpaperRetro_ = false;

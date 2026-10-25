@@ -4,6 +4,15 @@ Todas as mudanças relevantes do AURORA/86. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa
 versionamento semântico no formato `MAJOR.MINOR.PATCH`.
 
+## [1.6.0] — 2026-10-25
+
+- Desktop e login redesenhados, aurora procedural, dock e busca de aplicativos com Ctrl+Space.
+- System Center com histórico de memória, processos, serviços persistentes e journal de eventos.
+- Terminal com systemctl, journalctl, hostnamectl, uptime, find e du; spooler controla a impressão.
+- Arquivos com atalhos, filtro, histórico e copiar/colar; navegador preserva as cores dos sites.
+- Motor Doom original isolado em processo próprio, com Freedoom livre incluído, importação de IWAD, download opcional do Doom shareware original via SDL, efeitos sonoros e saves. Música MIDI ainda não implementada.
+- Proteção de arquivos locais no empacotamento e correção do fechamento de múltiplas janelas.
+
 ## [1.5.0] — 2026-10-24
 
 Versão "Two corridors": o HELLGATE deixa de ser um corredor só e vira uma

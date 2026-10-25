@@ -1,10 +1,19 @@
-# AURORA/86 1.5.0
+# AURORA/86 1.6.0
 
 [Português](README.pt-BR.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Ideas roadmap (PT-BR)](ROADMAP.pt-BR.md)
 
 A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its own boot sequence, desktop, Unix-inspired shell, shared virtual disk, package manager, Lua runtime and native applications. The interface is in English.
 
 ![AURORA/86 desktop](AURORA86-desktop.png)
+
+## What's new in 1.6
+
+- Redesigned midnight desktop, procedural aurora wallpaper, clearer windows and a searchable application launcher (**Ctrl+Space**).
+- **System Center:** live memory history, processes, persistent services and event log. Try systemctl, journalctl, hostnamectl, find and du in the terminal.
+- File Manager adds places, filtering, navigation history and virtual-disk copy/paste. The browser preserves the original colors of websites.
+- **Real Doom engine inside the workstation:** Freedoom: Phase 1 is included; use **Open Doom WAD…** to load your own Doom or Doom II IWAD. WASD / arrows move, Ctrl fires, E / Space uses, F2 saves and F3 loads. **Get Doom shareware** downloads the original first episode from the SDL project over HTTPS with pinned checksums; original game data is kept outside the source and AppImage. Sound effects work; MIDI music is not included. Saves stay on the host, outside the 2 MiB virtual disk. [Engine and free data credits](third_party/doom/UPSTREAM.txt).
+
+![Original Doom shareware inside Aurora](AURORA86-doom.png)
 
 ## What's new in 1.5
 
@@ -42,24 +51,20 @@ A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its 
 
 ## Run
 
-[Release 1.5](https://github.com/fis4med2/Aurora86/releases/latest) is published as source: the release upload endpoint is unreachable from the packaging host, so the 1.5 AppImage cannot be attached there yet. Download *Source code (tar.gz)*, build it (see [Build and test](#build-and-test)) and run `packaging/build-appimage-offline.sh` to turn your build into an AppImage. The last release with an attached Linux AppImage is [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0).
-
-A 1.5 AppImage is **x86_64 and requires glibc 2.35 or newer**, an X11 or Wayland session, host graphics drivers and the desktop libraries every Chromium-based app needs (NSS, ALSA or PulseAudio, the X11 extensions). Qt 6.8, WebEngine/Chromium, ICU, fonts and icons are bundled; Lua 5.4 is built in.
+Download the executable from [Releases](https://github.com/fis4med2/Aurora86/releases). The Linux AppImage is **x86_64 and requires glibc 2.44 or newer**, an X11/Wayland session and host graphics drivers. Qt, WebEngine/Chromium, fonts and audio libraries are included. Older distributions need a rebuild against an older baseline.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
-./AURORA86-x86_64.AppImage            # add --appimage-extract-and-run without FUSE
+./AURORA86-x86_64.AppImage
 ```
 
-To package 1.5 yourself after building it:
+Without FUSE:
 
 ```sh
-bash packaging/build-appimage.sh                 # Linux AppImage (downloads appimagetool and the runtime)
-bash packaging/build-appimage-offline.sh         # same AppDir, but with tools you already have on disk
-pwsh packaging/windows/package.ps1               # Windows installer and zip
+./AURORA86-x86_64.AppImage --appimage-extract-and-run
 ```
 
-First login: **Guest, no password → Sign in**. Enter/Space skips boot. **F11** toggles fullscreen. Drag window title bars to move them and resize from the bottom-right corner. The Windows menu restores minimized applications. **F1** opens the station handbook with keyboard, terminal, BASIC and Lua guides, and **Shift+F1** shows the keyboard reference card.
+Windows can be built from source with `packaging/windows/package.ps1`. The Windows installer has not been validated for this release.\n\nFirst login: **Guest, no password → Sign in**. Enter/Space skips boot. **F11** toggles fullscreen. Drag window title bars to move them and resize from the bottom-right corner. The Windows menu restores minimized applications. **F1** opens the station handbook with keyboard, terminal, BASIC and Lua guides, and **Shift+F1** shows the keyboard reference card.
 
 For wallpaper, use **AURORA / 86 → Wallpaper...** or right-click the desktop. Display presets, text size, themes, audio and clock live in **AURORA / 86 → Control Panel**. The auroraSYNC profile is under **AURORA / 86 → auroraSYNC profile...**. Imported images are copied into the virtual disk; the original Linux file is unchanged.
 

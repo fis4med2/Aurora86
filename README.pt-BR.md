@@ -1,10 +1,19 @@
-# AURORA/86 1.5.0
+# AURORA/86 1.6.0
 
 [English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Roadmap de ideias](ROADMAP.pt-BR.md)
 
 Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem boot próprio, desktop, terminal inspirado no Unix, disco virtual compartilhado, gerenciador de pacotes, runtime Lua e aplicativos nativos. A interface está em inglês.
 
 ![Desktop AURORA/86](AURORA86-desktop.png)
+
+## Novidades da versão 1.6
+
+- Desktop noturno renovado, aurora procedural, janelas mais claras e busca de aplicativos com **Ctrl+Espaço**.
+- **System Center:** histórico de memória, processos, serviços persistentes e eventos. O terminal ganha systemctl, journalctl, hostnamectl, find e du.
+- Arquivos com atalhos, filtro, histórico e copiar/colar no disco virtual. O navegador preserva as cores originais dos sites.
+- **Motor real do Doom dentro da estação:** Freedoom: Phase 1 incluído; **Open Doom WAD…** importa seu IWAD de Doom ou Doom II. WASD / setas movem, Ctrl atira, E / Espaço usa, F2 salva e F3 carrega. **Get Doom shareware** baixa o primeiro episódio original pelo projeto SDL, com HTTPS e hashes fixados; os dados originais ficam fora do código e do AppImage. Efeitos sonoros disponíveis; música MIDI ainda ausente. Saves ficam no Linux, fora do disco virtual de 2 MiB. [Créditos](third_party/doom/UPSTREAM.txt).
+
+![Doom shareware original dentro do Aurora](AURORA86-doom.png)
 
 ## Novidades da versão 1.5
 
@@ -54,24 +63,20 @@ Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem 
 
 ## Executar
 
-A [versão 1.5](https://github.com/fis4med2/Aurora86/releases/latest) está publicada como código-fonte: o envio de anexos da release está inacessível na máquina de empacotamento, então o AppImage da 1.5 ainda não pode ser anexado lá. Baixe *Source code (tar.gz)*, compile (veja [Compilar e testar](#compilar-e-testar)) e rode `packaging/build-appimage-offline.sh` para transformar o build em AppImage. A última versão com AppImage anexado é a [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0).
-
-O AppImage da 1.5 é **x86_64 e exige glibc 2.35 ou superior**, sessão X11 ou Wayland, drivers gráficos do host e as bibliotecas de desktop que todo app baseado em Chromium usa (NSS, ALSA ou PulseAudio, extensões do X11). Qt 6.8, WebEngine/Chromium, ICU, fontes e ícones vão dentro do pacote; Lua 5.4 é embutido.
+Baixe o executável em [Releases](https://github.com/fis4med2/Aurora86/releases). O AppImage para Linux é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux. Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos. Distribuições antigas precisam de outra compilação sobre uma base mais antiga.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
-./AURORA86-x86_64.AppImage            # sem FUSE, use --appimage-extract-and-run
+./AURORA86-x86_64.AppImage
 ```
 
-Para empacotar a 1.5 você mesmo, depois de compilar:
+Sem FUSE:
 
 ```sh
-bash packaging/build-appimage.sh                 # AppImage para Linux (baixa appimagetool e o runtime)
-bash packaging/build-appimage-offline.sh         # mesmo AppDir, com as ferramentas que você já tem no disco
-pwsh packaging/windows/package.ps1               # instalador e zip para Windows
+./AURORA86-x86_64.AppImage --appimage-extract-and-run
 ```
 
-Primeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu Windows restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado.
+Windows pode ser compilado do fonte com `packaging/windows/package.ps1`. O instalador Windows desta versão ainda não foi validado.\n\nPrimeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu Windows restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado.
 
 Para trocar o papel de parede, use **AURORA / 86 → Wallpaper...** ou clique com o botão direito no desktop. Presets de tela, tamanho do texto, temas, áudio e relógio ficam em **AURORA / 86 → Control Panel**. O perfil auroraSYNC está em **AURORA / 86 → auroraSYNC profile...**. A importação copia a imagem para o disco virtual e não altera o arquivo original no Linux.
 
