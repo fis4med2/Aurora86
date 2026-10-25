@@ -371,7 +371,8 @@ QString PackageManager::remove(const QStringList &names) {
     return "aurora: removed " + ordered.join(", ") + ".";
 }
 
-QString PackageManager::run(const QString &command, const QStringList &arguments, const QString &cwd) {
+QString PackageManager::run(const QString &command, const QStringList &arguments, const QString &cwd,
+                            const QString &standardInput) {
     const QString owner = commands().value(command);
     if (owner.isEmpty())
         return error("Unknown packaged command: " + command);
@@ -391,6 +392,8 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
         return message.isEmpty();
     };
     const auto noArguments = [&] { return args.isEmpty(); };
+    // A non-null standardInput means the shell connected this command to a pipe.
+    const bool piped = !standardInput.isNull();
     if (command == "man") {
         if (args.size() != 1)
             return usage("man COMMAND");
@@ -408,7 +411,7 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
         QStringList info = {
             (username.isEmpty() ? QString("guest") : username) + "@aurora",
             "---------------------------",
-            "OS: AURORA/86 1.2 / ASTER shell",
+            "OS: AURORA/86 1.5 / ASTER shell",
             "Host: A16 personal workstation",
             "CPU: A16 / 8 MHz / 16-bit",
             QString("Display: LUME / %1 x %2 / 4 tones")
@@ -655,31 +658,37 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
                     return error("Unknown grep option: " + QString(flag));
             }
         }
-        if (args.size() - i < 2)
+        if (args.size() - i < 2 && !(piped && args.size() - i == 1))
             return usage("grep [-invc] PATTERN FILE...");
         QRegularExpression regex(args[i++], insensitive ? QRegularExpression::CaseInsensitiveOption
                                                         : QRegularExpression::NoPatternOption);
         if (!regex.isValid())
             return error("Invalid regular expression: " + regex.errorString());
-        const bool multiple = args.size() - i > 1;
-        QStringList out;
+        QVector<QPair<QString, QByteArray>> sources;
         for (; i < args.size(); ++i) {
             QByteArray data;
             if (!read(args[i], data))
                 return error(message);
+            sources.append({args[i], data});
+        }
+        if (sources.isEmpty())
+            sources.append({QString(), standardInput.toUtf8()});
+        const bool multiple = sources.size() > 1;
+        QStringList out;
+        for (const auto &source : sources) {
             int matches = 0, lineNo = 0;
-            for (const auto &line : fileLines(data)) {
+            for (const auto &line : fileLines(source.second)) {
                 ++lineNo;
                 const QString text = QString::fromUtf8(line);
                 if (regex.match(text).hasMatch() == invert)
                     continue;
                 ++matches;
                 if (!count)
-                    out << (multiple ? args[i] + ":" : "") + (numbers ? QString::number(lineNo) + ":" : "") +
-                               text;
+                    out << (multiple ? source.first + ":" : "") +
+                               (numbers ? QString::number(lineNo) + ":" : "") + text;
             }
             if (count)
-                out << (multiple ? args[i] + ":" : "") + QString::number(matches);
+                out << (multiple ? source.first + ":" : "") + QString::number(matches);
         }
         return out.join('\n');
     }
@@ -697,8 +706,12 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
             } else
                 names << a;
         }
-        if (names.isEmpty())
-            return usage("wc [-lwmc] FILE...");
+        if (names.isEmpty()) {
+            if (piped)
+                names << QString();
+            else
+                return usage("wc [-lwmc] FILE...");
+        }
         if (selected.isEmpty())
             selected = "lwc";
         QStringList out;
@@ -714,7 +727,9 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
         };
         for (const auto &name : names) {
             QByteArray data;
-            if (!read(name, data))
+            if (name.isEmpty())
+                data = standardInput.toUtf8();
+            else if (!read(name, data))
                 return error(message);
             const QString text = QString::fromUtf8(data);
             qint64 words = 0;
@@ -724,7 +739,8 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
                 ++words;
             }
             const qint64 lines = data.count('\n'), characters = text.toUcs4().size(), bytes = data.size();
-            out << format(lines, words, characters, bytes, name);
+            const QString row = format(lines, words, characters, bytes, name);
+            out << (name.isEmpty() ? row.trimmed() : row);
             totalLines += lines;
             totalWords += words;
             totalCharacters += characters;
@@ -744,10 +760,12 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
             args.removeFirst();
             args.removeFirst();
         }
-        if (args.size() != 1)
+        if (args.size() != 1 && !(args.isEmpty() && piped))
             return usage(command + " [-n COUNT] FILE");
         QByteArray data;
-        if (!read(args[0], data))
+        if (args.isEmpty())
+            data = standardInput.toUtf8();
+        else if (!read(args[0], data))
             return error(message);
         const auto lines = fileLines(data);
         const int start = command == "head" ? 0 : qMax(0, int(lines.size()) - count);
@@ -780,10 +798,12 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
             else
                 names << a;
         }
-        if (names.size() != 1)
+        if (names.size() != 1 && !(names.isEmpty() && piped))
             return usage(command + " [OPTIONS] FILE");
         QByteArray data;
-        if (!read(names[0], data))
+        if (names.isEmpty())
+            data = standardInput.toUtf8();
+        else if (!read(names[0], data))
             return error(message);
         auto lines = fileLines(data);
         if (command == "sort") {
@@ -818,10 +838,12 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
             decode = true;
             args.removeFirst();
         }
-        if (args.isEmpty() || args.size() > 2)
+        if ((args.isEmpty() && !piped) || args.size() > 2)
             return usage("base64 [-d] FILE [OUTPUT]");
         QByteArray data;
-        if (!read(args[0], data))
+        if (args.isEmpty())
+            data = standardInput.toUtf8();
+        else if (!read(args[0], data))
             return error(message);
         QByteArray output;
         if (decode) {
@@ -858,10 +880,12 @@ QString PackageManager::run(const QString &command, const QStringList &arguments
             else
                 names << args[i];
         }
-        if (names.size() != 1)
+        if (names.size() != 1 && !(names.isEmpty() && piped))
             return usage(command + " FILE");
         QByteArray data;
-        if (!read(names[0], data))
+        if (names.isEmpty())
+            data = standardInput.toUtf8();
+        else if (!read(names[0], data))
             return error(message);
         data = data.left(limit);
         QStringList out;

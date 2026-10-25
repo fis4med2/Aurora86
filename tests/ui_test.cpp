@@ -410,7 +410,7 @@ class UiTest final : public QObject {
         QVERIFY(QMetaObject::invokeMethod(help, "activated"));
         auto *tabs = desktop.findChild<QTabWidget *>("handbookTabs");
         QVERIFY(tabs);
-        QCOMPARE(tabs->count(), 3);
+        QCOMPARE(tabs->count(), 4); // Keyboard, Terminal, HELLGATE, Lua
         auto *capture = desktop.findChild<QShortcut *>("screenshotShortcut");
         QVERIFY(capture);
         QVERIFY(QMetaObject::invokeMethod(capture, "activated"));

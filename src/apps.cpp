@@ -3,12 +3,14 @@
 #include "login.h"
 #include "shell.h"
 #include "wallpaper.h"
+#if AURORA_WITH_WEBENGINE
 #include <QWebEngineDownloadRequest>
 #include <QWebEnginePermission>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineView>
+#endif
 #include <QtWidgets>
 #include <cmath>
 #include <stdexcept>
@@ -87,6 +89,8 @@ class Terminal final : public QWidget {
         connect(shell_, &Shell::launchRequested, this,
                 [launch](const QString &app, const QString &path) { launch(app, path); });
         connect(shell_, &Shell::shutdownRequested, this, [this] { window()->close(); });
+        connect(shell_, &Shell::soundRequested, this,
+                [this](const QString &event) { speaker_->play(event); });
         connect(system_, &SimSystem::settingsChanged, this, [this] { prompt_->setText(shell_->prompt()); });
     }
     bool eventFilter(QObject *o, QEvent *e) override {
@@ -288,6 +292,7 @@ class Expression {
         return n;
     }
 };
+#if AURORA_WITH_WEBENGINE
 class NetworkFence : public QWebEngineUrlRequestInterceptor {
   public:
     using QWebEngineUrlRequestInterceptor::QWebEngineUrlRequestInterceptor;
@@ -311,6 +316,7 @@ class BrowserPage : public QWebEnginePage {
     }
     QWebEnginePage *createWindow(WebWindowType) override { return nullptr; }
 };
+#endif // AURORA_WITH_WEBENGINE
 } // namespace
 
 QWidget *createTerminal(SimSystem *s, Speaker *a, AppLauncher l, QWidget *p) {
@@ -556,7 +562,7 @@ QWidget *createSettings(SimSystem *s, QWidget *parent) {
     tabs->addTab(createWallpaperPanel(s), "Wallpaper");
     tabs->addTab(createIdentityPanel(s), "auroraSYNC");
     tabs->addTab(createDisplayPanel(s), "Display");
-    auto *title = new QLabel("CONTROL PANEL / AURORA 1.2");
+    auto *title = new QLabel("CONTROL PANEL / AURORA 1.5");
     l->addWidget(title);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -621,9 +627,9 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
     Q_UNUSED(s);
     auto *w = new QWidget(parent);
     auto *l = column(w);
-    auto *heading = new QLabel("GAMES ROOM / AURORA 1.2");
+    auto *heading = new QLabel("GAMES ROOM / AURORA 1.5");
     l->addWidget(heading);
-    auto *intro = new QLabel("Five experiences. Pick one to begin.");
+    auto *intro = new QLabel("Six experiences. Pick one to begin.");
     intro->setWordWrap(true);
     l->addWidget(intro);
     struct Choice {
@@ -635,7 +641,8 @@ QWidget *createGameLibrary(SimSystem *s, AppLauncher launch, QWidget *parent) {
                               {"garden", "Orbital Garden", "Plan the irrigation to make the garden bloom."},
                               {"echo", "Echo", "Watch, listen and repeat the signal sequence."},
                               {"snake", "Circuit", "Route a signal without crossing its own trail."},
-                              {"blocks", "Orbital Watch", "Defend the station from a meteor shower."}};
+                              {"blocks", "Orbital Watch", "Defend the station from a meteor shower."},
+                              {"hellgate", "HELLGATE", "Cross corridor 13: a textured 3D maze with drones and gates."}};
     for (const auto &choice : choices) {
         auto *frame = new QFrame;
         auto *row = new QHBoxLayout(frame);
@@ -706,6 +713,24 @@ QWidget *createMonitor(SimSystem *s, QWidget *parent) {
     return w;
 }
 QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, QWidget *parent) {
+#if !AURORA_WITH_WEBENGINE
+    // Portable build: no Chromium available, so the station shows a local notice page.
+    Q_UNUSED(s);
+    Q_UNUSED(speaker);
+    Q_UNUSED(initial);
+    auto *w = new QWidget(parent);
+    auto *l = column(w);
+    l->addWidget(new QLabel("N E T W O R K   /   O F F L I N E"));
+    auto *text = new QLabel("This AURORA/86 build was compiled without Qt WebEngine.\n\n"
+                            "The rest of the station works normally: terminal, A16 BASIC,\n"
+                            "Disk 0:, Writer, packages, Lua programs, games and /proc.\n\n"
+                            "Build again with Qt WebEngineWidgets available to browse\n"
+                            "the real internet from this window.");
+    text->setWordWrap(true);
+    l->addWidget(text);
+    l->addStretch();
+    return w;
+#else
     auto *w = new QWidget(parent);
     auto *l = column(w);
     auto *row = new QHBoxLayout;
@@ -813,13 +838,14 @@ QWidget *createBrowser(SimSystem *s, Speaker *speaker, const QString &initial, Q
         go();
     }
     return w;
+#endif // AURORA_WITH_WEBENGINE
 }
 QWidget *createAbout(QWidget *parent) {
     auto *w = new QWidget(parent);
     auto *l = column(w);
     auto *text = new QLabel("A U R O R A  /  8 6\n\nPERSONAL RESEARCH WORKSTATION\n"
                             "A16 series • 8 MHz • 4096 KiB\n2048 KiB magnetic disk\n\n"
-                            "AURORA system 1.2 / October 1986\nA small station. An entire world.\n\n"
+                            "AURORA system 1.5 / October 1986\nA small station. An entire world.\n\n"
                             "Hardware and processes are simulated.\nApplications built with C++ / Qt.\n"
                             "Browsing uses Chromium and the real internet.\n\n"
                             "F11  fullscreen      Ctrl+S  save\nTab  complete        ↑ / ↓   history");
@@ -840,12 +866,17 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
         tabs->addTab(body, title);
     };
     page("Keyboard", "F1              Station handbook\n"
+                     "Shift+F1        Keyboard reference card\n"
                      "F11             Fullscreen / window\n"
                      "Print Screen    Save this station's picture to Disk 0\n"
                      "Ctrl+Alt+T      Open Terminal\n"
                      "Ctrl+Alt+L      Lock auroraSYNC\n"
                      "Alt+F4          Close the active application\n"
                      "Ctrl+S          Save in Writer\n"
+                     "W A S D         Move in HELLGATE (A/D strafe, Shift runs)\n"
+                     "Arrows, Space   Turn and fire in HELLGATE\n"
+                     "E / P / R       Gate, pause and restart in HELLGATE\n"
+                     "T               HELLGATE practice mode (drones hold fire)\n"
                      "Tab             Complete a path in Terminal\n"
                      "Up / Down       Terminal command history\n\n"
                      "Move windows by their title bars. Resize at the lower-right corner.\n"
@@ -860,6 +891,24 @@ QWidget *createHandbook(AppLauncher launch, QWidget *parent) {
                      "Live virtual hardware:\n\ncat /proc/meminfo\ncat /proc/cpuinfo\nls /proc\n\n"
                      "Commands use simulated files and processes. No Linux commands are executed.\n"
                      "Disk capacity is 2048 KiB; RAM capacity is 4096 KiB.");
+    page("HELLGATE", "HELLGATE / corridor 13\n\n"
+                     "Open it from Games -> HELLGATE or type hellgate.\n\n"
+                     "W / S           walk forward and back\n"
+                     "A / D           strafe left and right\n"
+                     "Left / Right    turn\n"
+                     "Shift           run\n"
+                     "Space           fire (each shot spends one round)\n"
+                     "E               open or close a gate you are facing\n"
+                     "P               pause        R restart after the end\n"
+                     "T               practice mode, the drones hold their fire\n\n"
+                     "CORRIDOR 13 is the way in: find health packs and ammo crates,\n"
+                     "retire the five drones and step on the EXIT portal.\n\n"
+                     "THE CORE is the second sector. Four gates lead into the Warden's\n"
+                     "arena and the Warden shoots back. The last portal only opens\n"
+                     "once it falls, so stock up before you go in.\n\n"
+                     "Wall columns, drones and gates are drawn by the simulated A16:\n"
+                     "no GPU, no texture files on disk. Best times for both sectors\n"
+                     "are kept in the station settings.");
     page("Lua", "No compiler needed. Open Lua Studio, then choose Open folder.\n"
                 "Put a UTF-8 file named my-app.lua in that mods/ folder.\n\n"
                 "Install and run it in Terminal:\n\naurora -i my-app\nmy-app\n\n"
@@ -948,6 +997,14 @@ QIcon appIcon(const QString &kind, QColor ink) {
         for (int y : {3, 18})
             for (int x : {3, 18})
                 p.drawRect(x, y, 10, 10);
+    } else if (kind == "hellgate") {
+        p.drawRect(3, 6, 26, 20);
+        p.drawLine(3, 19, 29, 19);
+        p.drawLine(8, 6, 8, 13);
+        p.drawLine(16, 6, 16, 13);
+        p.drawLine(24, 6, 24, 13);
+        p.drawLine(12, 26, 12, 30);
+        p.drawLine(20, 26, 20, 30);
     } else if (kind == "games") {
         p.drawRect(2, 8, 28, 20);
         p.drawLine(7, 17, 17, 17);

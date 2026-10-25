@@ -39,9 +39,10 @@ void SimSystem::seed() {
         m_entries.insert(path, {path, false, data, permissions});
     };
     file("/home/guest/README.txt",
-         "WELCOME TO AURORA/86 1.2\n"
+         "WELCOME TO AURORA/86 1.5\n"
          "A fictional A16 workstation from Aurora Laboratories.\n\n"
          "Type help in Terminal. Your home directory is /home/guest.\n"
+         "Try basic to write a program in A16 BASIC, or basic docs/welcome.bas.\n"
          "Use edit notes.txt and Ctrl+S to write a document.\n"
          "F11 toggles fullscreen; windows can be moved and resized.\n"
          "F1 opens the station handbook. Print Screen saves a picture in images/.\n"
@@ -52,10 +53,21 @@ void SimSystem::seed() {
          "Installed: aurora -l     Remove: aurora -r htop\n"
          "Packages are simulated; installation never changes Linux.\n"
          "Read live system information with cat /proc/meminfo or ls /proc.\n\n"
+         "ARCADE\nType hellgate for corridor 13, a 3D maze drawn by the A16 itself.\n\n"
          "LUA PROGRAMS\nOpen Lua Studio with mods. Drop .lua files in its selected mods/ folder.\n"
          "Try aurora -i notepad todo, then run notepad or todo. Both save your work.\n"
          "Run a virtual script with lua /home/guest/example.lua.\n\n"
          "Your files, settings, wallpaper and puzzle progress are saved automatically.\n");
+    file("/home/guest/docs/welcome.bas",
+         "10 REM WELCOME TO A16 BASIC\n"
+         "20 PRINT \"AURORA/86 - A16 BASIC\"\n"
+         "30 PRINT \"--------------------\"\n"
+         "40 FOR I = 1 TO 4\n"
+         "50 PRINT I; \" SQUARED IS \"; I * I\n"
+         "60 BEEP\n"
+         "70 NEXT I\n"
+         "80 PRINT \"EDIT THIS FILE, THEN RUN AGAIN.\"\n"
+         "90 END\n");
     file("/home/guest/docs/journal.txt",
          "23 OCT 1986\n\nToday the A16 arrived. Our workshop has a window into the future.\n");
     file("/home/guest/docs/commands.txt",
@@ -63,7 +75,7 @@ void SimSystem::seed() {
          "notes.txt\nmkdir projects\nmv notes.txt projects/\nchmod 444 "
          "projects/notes.txt\nfree\ndf\nps\naurora -i fastfetch htop tree grep "
          "coreutils\nfastfetch\nhtop\ntree\n");
-    file("/etc/release", "AURORA/86 1.2\nAurora Laboratories / October 1986\n", 0444);
+    file("/etc/release", "AURORA/86 1.5\nAurora Laboratories / October 1986\n", 0444);
     file("/sys/hardware",
          "CPU: A16 / 16-bit bus / 8 MHz\nRAM: 4096 KiB\nDISK: M2 magnetic drive / 2048 KiB\nVIDEO: LUME "
          "adapter / 960 x 640 / 4 tones\nSOUND: mono waveform generator\n",
@@ -113,6 +125,16 @@ std::optional<VEntry> SimSystem::entryFor(const QString &path) const {
                       0444};
     if (path == "/proc/uptime")
         return VEntry{path, false, QByteArray::number(m_uptime.elapsed() / 1000.0, 'f', 2) + "\n", 0444};
+    if (path == "/proc/version")
+        return VEntry{path, false, "AURORA/86 1.5 (aster@aurora) #1 A16\n", 0444};
+    if (path == "/proc/loadavg")
+        return VEntry{path, false,
+                      QString("%1 0.00 0.00 1/%2 %3\n")
+                          .arg(QString::number(double(m_processes.size()) / qMax(1, MemoryKiB / 1024), 'f', 2))
+                          .arg(m_processes.size())
+                          .arg(m_processes.isEmpty() ? 1 : m_processes.first().pid)
+                          .toUtf8(),
+                      0444};
     const QStringList parts = path.mid(6).split('/');
     if (parts.isEmpty() || parts.size() > 2)
         return std::nullopt;
@@ -242,7 +264,7 @@ QList<VEntry> SimSystem::list(const QString &input) const {
     if (path == "/")
         result.append(*entryFor("/proc"));
     else if (path == "/proc") {
-        for (const QString &name : QStringList{"cpuinfo", "meminfo", "uptime"})
+        for (const QString &name : QStringList{"cpuinfo", "loadavg", "meminfo", "uptime", "version"})
             result.append(*entryFor(path + '/' + name));
         for (const auto &process : m_processes)
             result.append(*entryFor(path + '/' + QString::number(process.pid)));

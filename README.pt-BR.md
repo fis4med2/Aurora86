@@ -1,19 +1,49 @@
-# AURORA/86 1.2.0
+# AURORA/86 1.5.0
 
-[English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases)
+[English](README.md) · [Downloads](https://github.com/fis4med2/Aurora86/releases) · [Roadmap de ideias](ROADMAP.pt-BR.md)
 
 Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem boot próprio, desktop, terminal inspirado no Unix, disco virtual compartilhado, gerenciador de pacotes, runtime Lua e aplicativos nativos. A interface está em inglês.
 
 ![Desktop AURORA/86](AURORA86-desktop.png)
 
-## Novidades da versão 1.2
+## Novidades da versão 1.5
 
-- **Interface em inglês:** menus, aplicativos, textos de ajuda e arquivos do sistema simulado agora usam inglês.
-- **auroraSYNC:** entre como Guest, ajuste nome, login, nota, mensagem, avatar e fundo, defina uma senha opcional e bloqueie a sessão com Ctrl+Alt+L.
-- **Pacotes:** repositório offline com 16 pacotes e 23 utilitários, com dependências e espaço simulado em disco. Instale pelo Package Center ou com `aurora`.
-- **Lua 5.4.8:** o Lua Studio instala e edita mods portáteis a partir de uma pasta do Linux. Os scripts rodam dentro do computador simulado.
-- **Controles de tela:** escolha a resolução do desktop, ajuste o tamanho do texto e alterne temas. F11 alterna tela cheia.
-- **Ferramentas da estação:** F1 abre o manual; Print Screen salva uma captura virtual e `/proc` mostra hardware e processos simulados em tempo real.
+- **O HELLGATE virou campanha:** depois do corredor 13 a estação abre **THE CORE**,
+  um anel de corredores em volta da arena do Warden. Quatro portões dão entrada, o
+  chefe atira de volta e o portal final só abre depois que ele cai.
+- **Modo prática (`T`):** drones e Warden seguram o fogo para você aprender o mapa,
+  com aviso no HUD.
+- **Projéteis e recordes por setor:** bolas de energia com sprite e colisão
+  próprios, e melhores tempos guardados por setor e para a campanha inteira.
+- **Onze casos de regressão** agora percorrem os dois mapas com eventos de tecla
+  reais, incluindo a luta com o chefe e o portão final selado.
+
+![HELLGATE, the core](AURORA86-hellgate-core.png)
+
+## Novidades da versão 1.4
+
+- **HELLGATE / corredor 13:** o primeiro jogo em primeira pessoa da estação. Um
+  raycaster com texturas desenhado pelo próprio A16 simulado — paredes, piso e
+  teto coluna a coluna, nove salas, portões que abrem com `E`, cinco drones com
+  sprites, pacotes de vida e munição, e cronômetro com o melhor tempo guardado.
+- **Nenhuma dependência nova:** todas as texturas de parede, drone e portão são
+  geradas por código na inicialização, então a ilusão de 1986 se mantém e o disco
+  virtual continua com 2048 KiB.
+- **Documentação e testes:** uma aba HELLGATE no manual da estação, nova
+  referência de teclado e sete casos de regressão para mapa, renderização,
+  colisão, munição e portões.
+
+![HELLGATE corredor 13](AURORA86-hellgate.png)
+
+## Novidades da versão 1.3
+
+- **A16 BASIC:** o terminal agora tem um interpretador de BASIC. Linhas numeradas, `FOR/NEXT`, `IF/THEN/ELSE`, `GOSUB/RETURN`, `DIM`, `DATA/READ`, strings, `SAVE`/`LOAD` e limites rígidos para um programa em laço infinito nunca travar a estação.
+- **ASTER muito mais shell:** pipes (`ls | grep txt`), sequências (`;`, `&&`), variáveis (`$HOME`, `$USER`, `$?`), `export`, `alias`, `history`, `which` e curingas (`*.txt`, `docs/*`).
+- **`/proc` vivo:** `cpuinfo`, `meminfo`, `uptime`, `version` e `loadavg` refletem a máquina simulada e combinam com os pipes.
+- **Impressora A16:** `lpr`, `lpq` e `lprm` com fila em papel contínuo de 80 colunas no disco virtual.
+- **A16ARC:** `pack`, `unpack` e `arc -l` com compressão, para levar arquivos entre discos.
+- **Interface:** barra de janelas no rodapé, protetor de tela com estrelas e logo quicando, captura de tela com **PrtSc**, manual da estação com **F1** e referência de teclado com **Shift+F1**.
+- **Estados antigos continuam válidos:** o estado 1.2 é migrado automaticamente (a pasta `/proc` é criada na primeira abertura).
 
 ![Login auroraSYNC](AURORA86-login.png)
 ![Package Center](AURORA86-packages.png)
@@ -24,7 +54,7 @@ Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem 
 
 ## Executar
 
-Baixe o AppImage em [Releases](https://github.com/fis4med2/Aurora86/releases). Para executar, não precisa instalar compilador, SDK C++ ou Lua separado. O AppImage para Linux é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux. Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos. Distribuições antigas precisam de outra compilação sobre uma base mais antiga.
+Baixe o executável em [Releases](https://github.com/fis4med2/Aurora86/releases). O AppImage para Linux é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux. Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos. Distribuições antigas precisam de outra compilação sobre uma base mais antiga.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
@@ -37,20 +67,63 @@ Sem FUSE:
 ./AURORA86-x86_64.AppImage --appimage-extract-and-run
 ```
 
-Primeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu **Windows** restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal e Lua.
+O build para Windows ainda está em validação. Quando o [workflow](.github/workflows/windows.yml) terminar, ele gera dois arquivos:
+
+- `AURORA86-Setup-x64.exe`: instalador para Windows 10/11 x64, sem exigir administrador.
+- `AURORA86-Windows-x86_64.zip`: extraia a pasta inteira e abra `aurora86.exe`. Mantenha as DLLs, plugins e recursos juntos.
+
+Primeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu Windows restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado.
 
 Para trocar o papel de parede, use **AURORA / 86 → Wallpaper...** ou clique com o botão direito no desktop. Presets de tela, tamanho do texto, temas, áudio e relógio ficam em **AURORA / 86 → Control Panel**. O perfil auroraSYNC está em **AURORA / 86 → auroraSYNC profile...**. A importação copia a imagem para o disco virtual e não altera o arquivo original no Linux.
 
 ## Aplicativos
 
-- **Terminal ASTER:** `help`, `ls -l`, `cd`, `pwd`, `cat`, `echo` com `>`/`>>`, `mkdir`, `touch`, `rm -r`, `mv`, `cp`, `chmod`, `stat`, `df`, `free`, `ps`, `kill`, `date`, `uname`, `whoami`, `clear`. Aspas, histórico e Tab para completar caminhos. Jogos abrem com `prism`, `garden`, `eco`, `snake`, `blocks` ou `games`. `exit` fecha o terminal; `shutdown` encerra o simulador.
+- **Terminal ASTER:** `help`, `ls -l`, `cd`, `pwd`, `cat`, `echo` com `>`/`>>`, `mkdir`, `touch`, `rm -r`, `mv`, `cp`, `chmod`, `stat`, `df`, `free`, `ps`, `kill`, `date`, `uname`, `whoami`, `clear`. Pipes com `|`, sequências com `;` e `&&`, variáveis com `$NOME`, `export`, `alias`, `history`, `which` e curingas `*`/`?`/`[abc]`. Aspas, histórico e Tab para completar caminhos. Jogos abrem com `prism`, `garden`, `eco`, `snake`, `blocks` ou `games`. `basic` inicia o interpretador, `screenshot` salva a tela, `exit` fecha o terminal e `shutdown` encerra o simulador.
 - **Disk 0:** criação, abertura, exclusão e movimentação de arquivos e pastas virtuais.
 - **Writer:** edição UTF-8, Ctrl+S e confirmação de alterações não gravadas ou substituição.
-- **Control Panel, calculadora e monitor do sistema.**
-- **Atelier:** abre imagens virtuais. **Print Screen** ou **File → Capture screen** salva a janela do simulador em `/home/guest/images/snap-NNNN.png`, preserva capturas existentes e abre a imagem no Atelier. **Export to Linux...** grava a imagem selecionada no destino que você escolher.
+- **Control Panel, calculadora, visualizador de imagens e monitor do sistema.**
 - **Package Center:** navegar, pesquisar, instalar e remover os pacotes offline.
 - **Lua Studio:** listar, executar, editar, instalar e remover programas Lua.
 - **Network Mail:** HTTP/HTTPS reais pelo Chromium, navegação e gravação de HTML no disco virtual. Acesso a arquivos locais, uploads, downloads para o Linux e permissões de dispositivos ficam desativados. A proteção do Chromium permanece ativa.
+
+## A16 BASIC
+
+Digite `basic` no terminal. O prompt vira `basic>` e o AURORA passa a ser um micro de 1986 de verdade:
+
+```text
+basic> 10 PRINT "AURORA/86"
+basic> 20 FOR I = 1 TO 4
+basic> 30 PRINT I; " SQUARED IS "; I * I
+basic> 40 NEXT I
+basic> RUN
+```
+
+Comandos: `RUN`, `LIST [faixa]`, `NEW`, `SAVE "NOME.BAS"`, `LOAD "NOME.BAS"`, `SYSTEM` (volta ao ASTER).
+Instruções: `PRINT` com `;` e `,`, `LET`, `INPUT`, `IF/THEN/ELSE`, `GOTO`, `GOSUB`/`RETURN`, `FOR`/`NEXT`/`STEP`, `DIM` (até duas dimensões), `DATA`/`READ`/`RESTORE`, `REM`, `END`, `STOP`, `CLS`, `BEEP`, `RANDOMIZE`.
+Funções: `ABS`, `SGN`, `INT`, `SQR`, `SIN`, `COS`, `TAN`, `ATN`, `EXP`, `LOG`, `RND`, `LEN`, `VAL`, `ASC`, `CHR$`, `STR$`, `LEFT$`, `RIGHT$`, `MID$`, `SPACE$`, `STRING$`, `HEX$`, `OCT$`.
+
+Um programa de exemplo fica em `/home/guest/docs/welcome.bas` (`basic docs/welcome.bas` e depois `RUN`). Os limites são reais: 64 KiB de saída, 250 mil instruções por execução, 2000 linhas e arrays de até 4096 elementos. Erros aparecem no formato clássico, com número de linha (`?SYNTAX ERROR IN 30`).
+
+## Impressora, arquivos e `/proc`
+
+```text
+lpr docs/journal.txt      enfileira um trabalho
+lpq                       lista a fila
+lprm all                  esvazia a fila
+
+pack backup.arc docs/*.txt
+arc -l backup.arc
+unpack backup.arc copia
+
+cat /proc/meminfo | grep MemFree
+cat /proc/cpuinfo
+```
+
+A fila de impressão vive em `/tmp/print`, com um cabeçalho de 80 colunas por trabalho. Os arquivos A16ARC usam compressão e recusam nomes com caminho, membros demais ou expansão acima de 512 KiB. `/proc` é gerado a partir do estado real da máquina simulada: memória, processos, uptime e versão.
+
+## Interface
+
+O rodapé agora mostra uma **barra de janelas**: clique em um título para restaurar e focar. O protetor de tela entra depois de 5 minutos parado (ajuste em **Control Panel → Display**, ou desligue) e volta com qualquer tecla; **PrtSc** salva um PNG em `/home/guest/images/snap-NNNN.png` e abre no Atelier; **F1** abre o manual da estação e **Shift+F1** a referência de teclado.
 
 ## Pacotes
 
@@ -67,39 +140,38 @@ aurora -l
 
 Outros utilitários incluem neofetch, cowsay, figlet, cal, nano e less. `aurora -s TEXTO` pesquisa, `aurora --info NOME` mostra detalhes e `aurora -r NOME` remove o pacote depois de conferir as dependências. O htop mostra processos simulados com controles F2/F3/F9/F10.
 
-Inspecione a estação com `cat /proc/cpuinfo`, `cat /proc/meminfo`, `cat /proc/uptime` e `ls /proc`. Cada PID ativo tem arquivos `status` e `cmdline`. Essas entradas são somente leitura, atualizam em tempo real e não ocupam disco virtual; as pastas dos PIDs desaparecem quando o processo termina. Todas descrevem o AURORA, não o Linux.
-
 ## Programas e mods Lua
 
-Abra o **Lua Studio** em Applications ou digite `mods`. Uma pasta `mods/` gravável é criada ao lado do AppImage quando possível, com alternativa no diretório de dados do aplicativo. O Lua Studio mostra o caminho completo; **Choose folder** escolhe outra pasta do Linux. Coloque nela um `.lua` em UTF-8 e instale:
+Abra o **Lua Studio** em Applications ou digite `mods`. A pasta `mods/` é criada automaticamente quando possível; **Choose folder** escolhe outra pasta do Linux. Coloque nela um `.lua` em UTF-8 e instale:
 
 ```text
 aurora -i hello
 hello
 ```
 
-Os exemplos ficam em [`mods/`](mods/): `hello`, `notepad`, `todo` e `theme-switcher`. O bloco de notas permite editar e salvar/recarregar texto; a lista de tarefas grava o progresso num documento virtual. A instalação copia os scripts para o disco virtual. O Lua Studio também executa, edita e remove programas instalados. Para rodar um arquivo virtual direto, use `lua /home/guest/docs/program.lua`.
+Os exemplos ficam em [`mods/`](mods/): `hello`, `notepad` e `theme-switcher`. A instalação copia os scripts para o disco virtual. O Lua Studio também executa, edita e remove programas instalados. Para rodar um arquivo virtual direto, use `lua /home/guest/docs/program.lua`.
 
 Grave como `my-app.lua`, instale com `aurora -i my-app` e execute `my-app`:
 
 ```lua
 -- @name my-app
-local path = "/home/guest/docs/my-note.txt"
+local n = 0
 aurora.window {
-    title = "My notebook",
-    inputs = {
-        {id = "note", label = "Note", value = aurora.read(path) or "", multiline = true}
-    },
+    title = "My program", text = "Click a button",
     buttons = {
-        {label = "Save", action = function()
-            local ok, err = aurora.write(path, aurora.input("note"))
-            aurora.text(ok and "Saved to the virtual disk." or err)
+        {label = "Count", action = function()
+            n = n + 1
+            aurora.text("Count: " .. n)
+        end},
+        {label = "Reset", action = function()
+            n = 0
+            aurora.text("Count: 0")
         end}
     }
 }
 ```
 
-API Lua: `aurora.read/write/list/mkdir`, `aurora.theme/setting`, `aurora.window`, `aurora.text` e `aurora.input`. Cada janela aceita até 8 campos de texto (4096 bytes UTF-8 cada), inclusive editores de várias linhas. Leia com `aurora.input("id")` ou atualize com `aurora.input("id", "valor")`. Limites: **heap de 1 MiB**, orçamento de instruções e **saída de 64 KiB**. Não há io/os do Linux, módulos nativos ou carregador de código; algumas funções são restritas. Lua já vem integrado; os mods não exigem compilador nem runtime externo. Mudanças no núcleo C++ exigem ferramentas de desenvolvimento e recompilação.
+API Lua: `aurora.read/write/list/mkdir` e `aurora.theme/setting`. Limites: **heap de 1 MiB**, orçamento de instruções e **saída de 64 KiB**. Não há io/os do Linux, módulos nativos ou carregador de código; algumas funções são restritas. Mods são portáteis e não precisam de DLLs. Mudanças no núcleo C++ exigem SDK e recompilação.
 
 ## Jogos
 
@@ -115,13 +187,13 @@ API Lua: `aurora.read/write/list/mkdir`, `aurora.theme/setting`, `aurora.window`
 
 O A16 simula 8 MHz, **4096 KiB de RAM** e **2048 KiB de disco**. Arquivos, permissões, configurações, perfil auroraSYNC, pacotes e mods instalados, papel de parede e progresso dos jogos são gravados atomicamente em `vfs.json`, em `~/.local/share/Aurora/AURORA86/` ou no diretório XDG correspondente. `--state-dir CAMINHO` seleciona outra estação. Estados da versão 1.1 continuam utilizáveis.
 
-`/bin`, `/sys` e `/etc` são protegidos; `/home/guest` e `/tmp` aceitam gravação. Caminhos virtuais não acessam arquivos do Linux, e o terminal e o Lua não executam comandos do host. A seleção de imagens importa explicitamente arquivos escolhidos no Linux; o Atelier exporta somente quando você escolhe um destino. O relógio é simulado. Estado inválido é preservado; uma trava impede gravações simultâneas no mesmo disco.
+`/bin`, `/sys` e `/etc` são protegidos; `/home/guest` e `/tmp` aceitam gravação. Caminhos virtuais não acessam arquivos do Linux, e o terminal e o Lua não executam comandos do host. A seleção de papel de parede é uma ponte explícita de importação, somente leitura. O relógio é simulado. Estado inválido é preservado; uma trava impede gravações simultâneas no mesmo disco.
 
 É um simulador de ambiente, não um emulador de instruções da CPU nem um Unix completo. As quotas de RAM são simuladas; o Chromium consome memória real conforme as páginas. Sessões do navegador ficam em memória, DRM não está incluído e alguns sites dependem de capacidades desativadas. Partidas de ação reiniciam; puzzles e recordes persistem.
 
 ## Compilar e testar
 
-Requer CMake ≥3.21, compilador C++20 e Qt ≥6.8 com Core, Widgets, Network, Multimedia, WebEngineWidgets e Test. O código do Lua está incluído em `third_party/`.
+Requer CMake ≥3.21, compilador C++20 e Qt ≥6.8 com Core, Widgets, Network e Test. Multimedia e WebEngineWidgets são opcionais: sem eles o CMake ainda compila a estação, com áudio silencioso e a janela Network sem Chromium. O código do Lua está incluído em `third_party/`.
 
 ```sh
 cmake -S . -B work/build -DCMAKE_BUILD_TYPE=Release

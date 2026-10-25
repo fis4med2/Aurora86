@@ -93,6 +93,8 @@ class CoreTest : public QObject {
             return entry.path == "/proc" && entry.directory && entry.permissions == 0555;
         }));
         QVERIFY(system.read("/proc/cpuinfo").contains("A16"));
+        QVERIFY(system.read("/proc/version").contains("AURORA/86 1.5"));
+        QVERIFY(system.read("/proc/loadavg").contains("0.00"));
         QCOMPARE(system.read("/proc/meminfo"),
                  QByteArray("MemTotal: 4096 kB\nMemFree: 3584 kB\nMemUsed: 512 kB\n"));
         const double before = system.read("/proc/uptime").trimmed().toDouble();
@@ -105,7 +107,7 @@ class CoreTest : public QObject {
         QCOMPARE(system.read(path + "/cmdline"), QByteArray("writer\0", 7));
         QVERIFY(system.read(path + "/status").contains("VmSize:\t128 kB"));
         QCOMPARE(system.list(path).size(), 2);
-        QCOMPARE(system.list("/proc").size(), 6);
+        QCOMPARE(system.list("/proc").size(), 8);
         QVERIFY(system.read("/proc/meminfo").contains("MemFree: 3456 kB"));
         QVERIFY(!system.exists("/proc/03"));
         QVERIFY(!system.exists("/proc/self"));

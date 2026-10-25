@@ -41,6 +41,23 @@ QWidget *createDisplayPanel(SimSystem *system, QWidget *parent) {
     full->setObjectName("startupFullscreen");
     full->setChecked(system->setting("startupFullscreen", false).toBool());
     form->addRow("Startup", full);
+    auto *saver = new QComboBox;
+    saver->setObjectName("screensaverMinutes");
+    saver->addItem("Off", 0);
+    saver->addItem("After 1 minute", 1);
+    saver->addItem("After 2 minutes", 2);
+    saver->addItem("After 5 minutes", 5);
+    saver->addItem("After 10 minutes", 10);
+    saver->addItem("After 15 minutes", 15);
+    {
+        const int saved = system->setting("screensaverMinutes", 5).toInt();
+        const int index = saver->findData(saved);
+        saver->setCurrentIndex(index >= 0 ? index : 3);
+    }
+    form->addRow("Screensaver", saver);
+    QObject::connect(saver, &QComboBox::currentIndexChanged, panel, [system, saver] {
+        system->setSetting("screensaverMinutes", saver->currentData().toInt());
+    });
     auto *apply = new QPushButton("Apply resolution");
     apply->setObjectName("displayApply");
     layout->addWidget(apply);

@@ -3,7 +3,9 @@
 #include "system.h"
 #include <QImageReader>
 #include <QTemporaryDir>
+#if AURORA_WITH_WEBENGINE
 #include <QWebEngineView>
+#endif
 #include <QtWidgets>
 #include <iostream>
 int main(int argc, char **argv) {
@@ -13,7 +15,7 @@ int main(int argc, char **argv) {
     app.setApplicationName("AURORA86");
     app.setDesktopFileName("io.github.fis4med2.Aurora86");
     app.setOrganizationName("Aurora");
-    app.setApplicationVersion("1.2.0");
+    app.setApplicationVersion("1.5.0");
     app.setStyle("Fusion");
     QImageReader::setAllocationLimit(16);
     QFontDatabase::addApplicationFont(":/fonts/AuroraFixed.ttf");
@@ -100,6 +102,13 @@ int main(int argc, char **argv) {
             desktop.screenshot(parser.value("boot-screenshot"));
             app.exit(0);
         });
+#if !AURORA_WITH_WEBENGINE
+    if (parser.isSet("browser-check")) {
+        std::cerr << "FAIL: this build has no Qt WebEngine\n";
+        app.exit(1);
+    }
+#endif
+#if AURORA_WITH_WEBENGINE
     if (parser.isSet("browser-check"))
         QTimer::singleShot(100, &desktop, [&] {
             desktop.launch("browser");
@@ -136,11 +145,12 @@ int main(int argc, char **argv) {
                 app.exit(1);
             });
         });
+#endif
     if (test)
         QTimer::singleShot(50, &desktop, [&] {
             for (const QString &id :
                  QStringList{"files", "editor", "calc", "image", "settings", "monitor", "snake", "blocks",
-                             "prism", "garden", "echo", "games", "about", "handbook"})
+                             "prism", "garden", "echo", "hellgate", "games", "about", "handbook"})
                 desktop.launch(id);
             auto *calculator = desktop.findChild<QLineEdit *>("calculatorInput");
             bool ok = loaded && calculator;
@@ -168,7 +178,7 @@ int main(int argc, char **argv) {
             } else
                 ok = false;
             auto *area = desktop.findChild<QMdiArea *>("desktopArea");
-            ok = ok && area && area->subWindowList().size() == 15 && system.processes().size() == 17;
+            ok = ok && area && area->subWindowList().size() == 16 && system.processes().size() == 18;
             bool initiallyFull = desktop.isFullScreen();
             desktop.toggleFullscreen();
             ok = ok && desktop.isFullScreen() != initiallyFull;
@@ -190,11 +200,11 @@ int main(int argc, char **argv) {
                             break;
                         }
                 }
-                ok = ok && system.processes().size() == 16;
+                ok = ok && system.processes().size() == 17;
             }
             std::cout
                 << (ok ? "PASS" : "FAIL")
-                << ": desktop, 15 applications, terminal, editor, calculator, processes and fullscreen\n";
+                << ": desktop, 16 applications, terminal, editor, calculator, processes and fullscreen\n";
             app.exit(ok ? 0 : 1);
         });
     return app.exec();
