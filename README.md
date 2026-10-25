@@ -42,9 +42,9 @@ A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its 
 
 ## Run
 
-[Release 1.5](https://github.com/fis4med2/Aurora86/releases/latest) is a **source release**: download *Source code (tar.gz)* and build it (see [Build and test](#build-and-test)). No AppImage is attached, because the packaging host had no Qt WebEngine and a binary built there would lose the Chromium browser.
+[Release 1.5](https://github.com/fis4med2/Aurora86/releases/latest) is published as source: the release upload endpoint is unreachable from the packaging host, so the 1.5 AppImage cannot be attached there yet. Download *Source code (tar.gz)*, build it (see [Build and test](#build-and-test)) and run `packaging/build-appimage-offline.sh` to turn your build into an AppImage. The last release with an attached Linux AppImage is [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0).
 
-The last release with a prebuilt Linux AppImage is [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0). That AppImage is **x86_64 and requires glibc 2.44 or newer**, an X11/Wayland session and host graphics drivers; Qt, WebEngine/Chromium, fonts and audio libraries are bundled.
+A 1.5 AppImage is **x86_64 and requires glibc 2.35 or newer**, an X11 or Wayland session, host graphics drivers and the desktop libraries every Chromium-based app needs (NSS, ALSA or PulseAudio, the X11 extensions). Qt 6.8, WebEngine/Chromium, ICU, fonts and icons are bundled; Lua 5.4 is built in.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
@@ -54,7 +54,8 @@ chmod +x AURORA86-x86_64.AppImage
 To package 1.5 yourself after building it:
 
 ```sh
-bash packaging/build-appimage.sh                 # Linux AppImage
+bash packaging/build-appimage.sh                 # Linux AppImage (downloads appimagetool and the runtime)
+bash packaging/build-appimage-offline.sh         # same AppDir, but with tools you already have on disk
 pwsh packaging/windows/package.ps1               # Windows installer and zip
 ```
 

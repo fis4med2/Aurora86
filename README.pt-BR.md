@@ -54,9 +54,9 @@ Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem 
 
 ## Executar
 
-A [versão 1.5](https://github.com/fis4med2/Aurora86/releases/latest) é uma **versão de código-fonte**: baixe *Source code (tar.gz)* e compile (veja [Compilar e testar](#compilar-e-testar)). Não há AppImage anexado, porque a máquina de empacotamento não tinha Qt WebEngine e um binário gerado ali perderia o navegador Chromium.
+A [versão 1.5](https://github.com/fis4med2/Aurora86/releases/latest) está publicada como código-fonte: o envio de anexos da release está inacessível na máquina de empacotamento, então o AppImage da 1.5 ainda não pode ser anexado lá. Baixe *Source code (tar.gz)*, compile (veja [Compilar e testar](#compilar-e-testar)) e rode `packaging/build-appimage-offline.sh` para transformar o build em AppImage. A última versão com AppImage anexado é a [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0).
 
-A última versão com AppImage pronto para Linux é a [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0). Esse AppImage é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux; Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos.
+O AppImage da 1.5 é **x86_64 e exige glibc 2.35 ou superior**, sessão X11 ou Wayland, drivers gráficos do host e as bibliotecas de desktop que todo app baseado em Chromium usa (NSS, ALSA ou PulseAudio, extensões do X11). Qt 6.8, WebEngine/Chromium, ICU, fontes e ícones vão dentro do pacote; Lua 5.4 é embutido.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
@@ -66,7 +66,8 @@ chmod +x AURORA86-x86_64.AppImage
 Para empacotar a 1.5 você mesmo, depois de compilar:
 
 ```sh
-bash packaging/build-appimage.sh                 # AppImage para Linux
+bash packaging/build-appimage.sh                 # AppImage para Linux (baixa appimagetool e o runtime)
+bash packaging/build-appimage-offline.sh         # mesmo AppDir, com as ferramentas que você já tem no disco
 pwsh packaging/windows/package.ps1               # instalador e zip para Windows
 ```
 
