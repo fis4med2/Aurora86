@@ -54,25 +54,23 @@ Computador pessoal fictício de 1986, escrito em **C++20 e Qt 6**. O AURORA tem 
 
 ## Executar
 
-Baixe o executável em [Releases](https://github.com/fis4med2/Aurora86/releases). O AppImage para Linux é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux. Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos. Distribuições antigas precisam de outra compilação sobre uma base mais antiga.
+A [versão 1.5](https://github.com/fis4med2/Aurora86/releases/latest) é uma **versão de código-fonte**: baixe *Source code (tar.gz)* e compile (veja [Compilar e testar](#compilar-e-testar)). Não há AppImage anexado, porque a máquina de empacotamento não tinha Qt WebEngine e um binário gerado ali perderia o navegador Chromium.
+
+A última versão com AppImage pronto para Linux é a [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0). Esse AppImage é **x86_64 e exige glibc 2.44 ou superior**, sessão X11/Wayland e drivers gráficos do Linux; Qt, Chromium/WebEngine, fontes e bibliotecas de áudio estão incluídos.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
-./AURORA86-x86_64.AppImage
+./AURORA86-x86_64.AppImage            # sem FUSE, use --appimage-extract-and-run
 ```
 
-Sem FUSE:
+Para empacotar a 1.5 você mesmo, depois de compilar:
 
 ```sh
-./AURORA86-x86_64.AppImage --appimage-extract-and-run
+bash packaging/build-appimage.sh                 # AppImage para Linux
+pwsh packaging/windows/package.ps1               # instalador e zip para Windows
 ```
 
-O build para Windows ainda está em validação. Quando o [workflow](.github/workflows/windows.yml) terminar, ele gera dois arquivos:
-
-- `AURORA86-Setup-x64.exe`: instalador para Windows 10/11 x64, sem exigir administrador.
-- `AURORA86-Windows-x86_64.zip`: extraia a pasta inteira e abra `aurora86.exe`. Mantenha as DLLs, plugins e recursos juntos.
-
-Primeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu Windows restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado.
+Primeiro login: **Guest, sem senha → Sign in**. Enter/Espaço pula o boot. **F11** alterna tela cheia. Arraste a barra de título para mover janelas e redimensione pelo canto inferior direito. O menu Windows restaura aplicativos minimizados. **F1** abre o manual da estação, com guias de teclado, terminal, BASIC e Lua, e **Shift+F1** mostra a referência de teclado.
 
 Para trocar o papel de parede, use **AURORA / 86 → Wallpaper...** ou clique com o botão direito no desktop. Presets de tela, tamanho do texto, temas, áudio e relógio ficam em **AURORA / 86 → Control Panel**. O perfil auroraSYNC está em **AURORA / 86 → auroraSYNC profile...**. A importação copia a imagem para o disco virtual e não altera o arquivo original no Linux.
 

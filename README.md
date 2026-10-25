@@ -42,23 +42,21 @@ A fictional 1986 personal computer, built in **C++20 and Qt 6**. AURORA has its 
 
 ## Run
 
-Download the executable from [Releases](https://github.com/fis4med2/Aurora86/releases). The Linux AppImage is **x86_64 and requires glibc 2.44 or newer**, an X11/Wayland session and host graphics drivers. Qt, WebEngine/Chromium, fonts and audio libraries are included. Older distributions need a rebuild against an older baseline.
+[Release 1.5](https://github.com/fis4med2/Aurora86/releases/latest) is a **source release**: download *Source code (tar.gz)* and build it (see [Build and test](#build-and-test)). No AppImage is attached, because the packaging host had no Qt WebEngine and a binary built there would lose the Chromium browser.
+
+The last release with a prebuilt Linux AppImage is [1.2](https://github.com/fis4med2/Aurora86/releases/tag/v1.2.0). That AppImage is **x86_64 and requires glibc 2.44 or newer**, an X11/Wayland session and host graphics drivers; Qt, WebEngine/Chromium, fonts and audio libraries are bundled.
 
 ```sh
 chmod +x AURORA86-x86_64.AppImage
-./AURORA86-x86_64.AppImage
+./AURORA86-x86_64.AppImage            # add --appimage-extract-and-run without FUSE
 ```
 
-Without FUSE:
+To package 1.5 yourself after building it:
 
 ```sh
-./AURORA86-x86_64.AppImage --appimage-extract-and-run
+bash packaging/build-appimage.sh                 # Linux AppImage
+pwsh packaging/windows/package.ps1               # Windows installer and zip
 ```
-
-The Windows build is still being validated. When the [workflow](.github/workflows/windows.yml) completes, it produces two assets:
-
-- `AURORA86-Setup-x64.exe`: installer for Windows 10/11 x64, no administrator rights required.
-- `AURORA86-Windows-x86_64.zip`: extract the whole folder and open `aurora86.exe`. Keep the DLLs, plugins and resources together.
 
 First login: **Guest, no password → Sign in**. Enter/Space skips boot. **F11** toggles fullscreen. Drag window title bars to move them and resize from the bottom-right corner. The Windows menu restores minimized applications. **F1** opens the station handbook with keyboard, terminal, BASIC and Lua guides, and **Shift+F1** shows the keyboard reference card.
 
