@@ -36,6 +36,22 @@ campanha curta, com chefe, prática e tempos salvos por setor.
   transição de setor com estatísticas preservadas, ataque do Warden e portão final
   bloqueado enquanto o chefe vive — tudo dirigido por eventos de tecla reais.
 
+### Empacotamento
+
+- **`packaging/build-appimage-offline.sh`**: monta o mesmo AppDir de
+  `build-appimage.sh` usando um runtime type-2 e um `mksquashfs` que já estejam
+  no disco, sem baixar `appimagetool`. As dependências são resolvidas por
+  `readelf` em vez de `ldd`, então o empacotamento funciona em hosts que não têm
+  todas as bibliotecas de sistema instaladas; glibc, drivers e bibliotecas de
+  desktop continuam vindo da máquina do usuário.
+- **AppImage da 1.5 gerado e testado**: runtime type-2 (`type2-runtime` commit
+  `dd6cebe`), squashfs em zstd nível 22 com blocos de 1 MiB, 100 MB, glibc
+  mínima 2.35. Inclui Qt 6.8, WebEngine/Chromium (sem os recursos de devtools),
+  ICU, plugins de plataforma X11/Wayland/offscreen, `QtWebEngineProcess`,
+  locales `en-US` e `pt-BR`. `--self-test` passa dentro do AppImage montado por
+  FUSE; o resto das bibliotecas de sistema (NSS, ALSA/Pulse, extensões X11) é
+  listado em `COMPATIBILITY.txt` dentro do pacote.
+
 ## [1.4.0] — 2026-10-24
 
 Versão "Arcade": o A16 ganha sua primeira visão em primeira pessoa, desenhada
